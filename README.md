@@ -1,30 +1,43 @@
 # Hermes Browser Extension
 
-Browser-native side panel for [Hermes Agent](https://hermes-agent.nousresearch.com/docs) — connect web context to your local or remote Hermes runtime.
+Browser-native side panel for [Hermes Agent](https://hermes-agent.nousresearch.com/docs) — connect active web context to your local or remote Hermes runtime.
 
 > Created by **Jon Komet** (`@abundantbeing`). Community extension for Hermes Agent by Nous Research.
 
+<p align="center">
+  <img src="./assets/readme/hermes-browser-demo.gif" alt="Hermes Browser Extension demo showing the side panel reading browser context and composing a Hermes prompt" width="100%" />
+</p>
+
+<p align="center">
+  <strong>Public alpha · Load unpacked · Local/remote Hermes API · Read-only browser context</strong><br />
+  Not on the Chrome Web Store yet.
+</p>
+
 ## What it is
 
-Hermes Browser Extension is not a browser chatbot. It is a Chrome/Edge side panel for the real Hermes Agent runtime. It talks to your Hermes Gateway/API server — local by default, remote when you configure a reachable URL — so it can use the models, tools, skills, sessions, memory, and MCP servers already configured in Hermes.
+Hermes Browser Extension is not a browser chatbot. It is a Chrome/Edge/Chromium side panel for the real Hermes Agent runtime. It talks to your Hermes Gateway/API server — local by default, remote when you configure a reachable URL — so it can use the models, tools, skills, sessions, memory, and MCP servers already configured in Hermes.
 
 This repo is specifically for the **extension**. A future standalone **Hermes Browser** may become a separate native macOS/Linux/Windows app built on the groundwork from this extension.
 
-## Status
+## Visual tour
 
-Public alpha. Load unpacked. Local or remote API server. Read-only browser context. **Not on the Chrome Web Store yet.**
+| Side panel | Theme settings | Local agents |
+| --- | --- | --- |
+| <img src="./assets/readme/hermes-browser-sidepanel.png" alt="Hermes Browser Extension side panel in Mono theme" width="300" /> | <img src="./assets/readme/hermes-browser-theme-settings.png" alt="Hermes Browser Extension appearance settings with color mode and theme picker" width="300" /> | <img src="./assets/readme/hermes-browser-settings-agent-picker.png" alt="Hermes Browser Extension settings with connected local agent picker" width="300" /> |
 
-## Features
+## Highlights
 
 - Chrome/Edge/Chromium MV3 side panel powered by the Side Panel API.
 - Connects to a configurable local or remote Hermes API server. Default: `http://127.0.0.1:8642`.
-- Auto-syncs the connected Hermes runtime's providers/models, profiles, skills, and sessions after Connect/Test/Save and on side-panel startup.
-- Sends active page/browser context to a persisted Hermes session.
+- Supports dashboard WebSocket mode when you have a signed-in remote Hermes dashboard tab and no API key.
+- Auto-syncs connected Hermes providers/models, profiles, skills, sessions, and capabilities.
+- Sends active tab/browser context into a persisted Hermes session.
 - Captures active tab title/URL, open tabs, selected text, readable page text, metadata, headings, forms, links, and buttons where available.
-- Supports voice dictation through the local Hermes audio transcription API, with a visible extension voice tab fallback for Chromium side-panel microphone blocks.
-- Wraps webpage text as untrusted browser context before sending it to Hermes.
+- Supports voice dictation through the local Hermes audio transcription API, with a visible extension voice-tab fallback for Chromium side-panel microphone blocks.
+- Wraps webpage text as untrusted context before sending it to Hermes.
 - Streams Hermes responses and falls back to non-streaming chat when needed.
-- Uses local extension storage for gateway mode, Gateway URL, and API key/browser token.
+- Includes Desktop-style appearance settings: Light/Dark/System mode plus Nous, Midnight, Ember, Mono, Cyberpunk, and Slate themes.
+- Includes a localhost agent picker for switching between trusted local Hermes API gateway ports.
 - No `debugger`, `nativeMessaging`, click/type/form-submit, cookies, history, bookmarks, downloads, or browser-control permissions in v0.1.
 
 ## Requirements
@@ -34,7 +47,7 @@ Public alpha. Load unpacked. Local or remote API server. Read-only browser conte
 - Node.js 20+.
 - Chrome, Edge, Brave, Comet, or another Chromium browser with Side Panel API support (Chrome 114+ baseline).
 
-## Quick start walkthrough
+## Quick start
 
 ### 1. Clone and build
 
@@ -56,17 +69,18 @@ dist/
 1. Open `chrome://extensions` or `edge://extensions`.
 2. Enable **Developer mode**.
 3. Click **Load unpacked**.
-4. Select the repo's `dist/` folder — not the repo root and not `extension/`.
+4. Select this repo's `dist/` folder — not the repo root and not `extension/`.
 5. Pin/click the Hermes extension icon to open the side panel.
 
 After code updates, run `npm run build` again and click **Reload** on the Hermes Browser Extension card in the browser extensions page.
 
-### 3. Enable the Hermes API server
+## Connect to Hermes
 
-Hermes API server settings are environment variables on the machine running Hermes. Local-only is the safest default:
+### Local API server
+
+Local-only is the safest default. Put this in `~/.hermes/.env` on the machine running Hermes:
 
 ```bash
-# ~/.hermes/.env on the Hermes machine
 API_SERVER_ENABLED=true
 API_SERVER_HOST=127.0.0.1
 API_SERVER_PORT=8642
@@ -74,10 +88,36 @@ API_SERVER_KEY=<strong-local-secret>
 API_SERVER_CORS_ORIGINS=chrome-extension://<your-extension-id>
 ```
 
+Start or restart the gateway:
+
+```bash
+hermes gateway run
+```
+
+Verify the API server:
+
+```bash
+HERMES_GATEWAY_URL=http://127.0.0.1:8642
+HERMES_API_TOKEN='<your-api-server-key-or-browser-token>'
+curl "$HERMES_GATEWAY_URL/health"
+curl -H "Authorization: Bearer $HERMES_API_TOKEN" "$HERMES_GATEWAY_URL/v1/models"
+```
+
+Then in the extension side panel:
+
+1. Click **Connect to Hermes** and approve locally if your Hermes Desktop/gateway supports the approval flow.
+2. If approval is not available yet, click **Manual setup**.
+3. Choose **Local gateway**.
+4. Use Gateway URL `http://127.0.0.1:8642`.
+5. Paste your scoped browser token or `API_SERVER_KEY`.
+6. Click **Test connection**, then **Save settings**.
+7. Open a normal `https://` page and ask: `Summarize this page in one sentence.`
+
+### Remote API server
+
 For a remote Hermes machine, bind the API server to a reachable trusted interface and keep CORS narrow:
 
 ```bash
-# ~/.hermes/.env on the remote Hermes machine
 API_SERVER_ENABLED=true
 API_SERVER_HOST=0.0.0.0
 API_SERVER_PORT=8642
@@ -85,40 +125,23 @@ API_SERVER_KEY=<strong-remote-secret>
 API_SERVER_CORS_ORIGINS=chrome-extension://<your-extension-id>
 ```
 
-Then restart/start the gateway on that machine:
+Use Tailscale/VPN/reverse proxy + HTTPS where possible. Do **not** expose the Hermes API server naked to the public internet. The Hermes API server can access the real Hermes runtime and tools.
 
-```bash
-hermes gateway run
-```
+### Remote dashboard mode, no API server
 
-Do **not** expose the Hermes API server naked to the public internet. Use Tailscale/VPN/reverse proxy + HTTPS, a strong `API_SERVER_KEY`, and a specific `API_SERVER_CORS_ORIGINS` value for the extension origin. The Hermes API server can access the real Hermes runtime and tools.
+If you run Hermes elsewhere and only expose the OAuth-gated dashboard, select **Remote**, enter the dashboard's `https://` URL, and leave the API key blank. With no key, the extension connects over the dashboard's `/api/ws` socket instead of the REST API server.
 
-### 4. Verify the API server
+Auth uses a single-use WebSocket ticket minted from a signed-in dashboard tab:
 
-```bash
-HERMES_GATEWAY_URL=http://127.0.0.1:8642
-HERMES_AUTH_HEADER='Authorization: Bearer <API_SERVER_KEY>'
-curl "$HERMES_GATEWAY_URL/health"
-curl -H "$HERMES_AUTH_HEADER" "$HERMES_GATEWAY_URL/v1/models"
-```
+- Open the dashboard URL in a normal browser tab and sign in, and keep that tab around.
+- The extension mints the ticket first-party from that tab, then opens the socket.
+- **Test connection** opens the socket and loads models, which confirms the whole path.
 
-### 5. Connect the extension
+Limitations in this mode: image attachments are inline-only, and the skills/profiles lists are unavailable because those are REST-only and the dashboard's REST surface is not reachable cross-origin.
 
-In the side panel first-run screen:
+## What syncs after connection
 
-1. Click **Connect to Hermes** and approve locally if your Hermes Desktop/gateway supports the approval flow.
-2. If approval is not available yet, click **Manual setup**.
-3. Enter:
-   - Gateway: **Local** or **Remote**. In Remote, paste an API key to use a remote API server, or leave it blank to connect over the dashboard WebSocket.
-   - Gateway URL: `http://127.0.0.1:8642`, `http://<tailscale-ip>:8642`, or your HTTPS reverse-proxy URL.
-   - API key / browser token: your scoped browser token or `API_SERVER_KEY`.
-   - Session ID: `hermes-browser-extension`
-   - Session title: `Hermes Browser Extension`
-4. Click **Test connection**. This probes `/health`, `/v1/models`, and session creation, then refreshes skills and profiles.
-5. Click **Save settings**.
-6. Open a normal `https://` page, then ask something like: `Summarize this page in one sentence.`
-
-After connection, the side panel automatically loads from the connected Hermes gateway:
+After connection, the side panel loads from the connected Hermes gateway:
 
 - `/v1/models` — all providers/models Hermes can enumerate, including provider-qualified IDs.
 - `/api/sessions` — recent Hermes sessions grouped by source.
@@ -127,18 +150,6 @@ After connection, the side panel automatically loads from the connected Hermes g
 - `/v1/capabilities` — feature flags such as audio transcription and Browser upload support.
 
 The DOM/context chip should show a non-zero page-context count on normal readable pages. Browser internal pages such as `chrome://extensions` are intentionally restricted.
-
-### Remote dashboard mode (no API server)
-
-If you run Hermes elsewhere and only expose the OAuth-gated dashboard (not the API server), select **Remote**, enter the dashboard's https URL, and leave the API key blank. With no key the extension connects over the dashboard's `/api/ws` socket instead of the REST API server, so you don't have to enable or expose `API_SERVER_*` at all. (Paste a key and it uses a remote API server instead.)
-
-Auth uses a single-use WebSocket ticket minted from a signed-in dashboard tab:
-
-- Open the dashboard URL in a normal browser tab and sign in, and keep that tab around.
-- The extension mints the ticket first-party from that tab (the dashboard's CORS and `SameSite=Lax` cookie make a direct cross-origin mint impossible), then opens the socket. No API key is used.
-- **Test connection** opens the socket and loads models, which confirms the whole path. Sessions list, open, and create over the socket too.
-
-Limitations in this mode: image attachments are inline-only, and the skills/profiles lists are unavailable, because those are REST-only and the dashboard's REST surface is not reachable cross-origin.
 
 ## Install with Hermes / Computer Use
 
@@ -228,15 +239,11 @@ HERMES_REVIEW_STATE_FILE=~/.hermes/hermes-browser-review-state.json
 
 For a GitHub-hosted Actions runner later, `HERMES_REVIEW_GATEWAY_URL` must be reachable from GitHub. A runner cannot reach `http://127.0.0.1:8642` on your personal machine; use a remote Hermes API server behind Tailscale/VPN/HTTPS or a self-hosted GitHub runner on the same network. Pushing `.github/workflows/*` also requires a GitHub token with `workflow` scope.
 
-Local dry-run:
+Dry-runs:
 
 ```bash
 npm run review:watch:dry-run
-```
 
-Event-runner dry-run against a saved GitHub payload:
-
-```bash
 GITHUB_EVENT_NAME=pull_request_target \
 GITHUB_EVENT_PATH=./event.json \
 GITHUB_REPOSITORY=abundantbeing/hermes-browser-extension \
@@ -265,7 +272,7 @@ extension/
   sidepanel.html      side panel UI
   sidepanel.css       side panel styling
   sidepanel.js        Hermes API client + UI state
-  voice-dictation.*  visible extension voice recorder fallback for blocked side-panel mic capture
+  voice-dictation.*   visible extension voice recorder fallback for blocked side-panel mic capture
   request-permissions.* visible extension mic-permission helper page
   sidepanel-preview.html static visual QA preview
   assets/             local Hermes fonts, icons, and imagery

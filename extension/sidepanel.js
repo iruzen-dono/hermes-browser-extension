@@ -203,6 +203,7 @@ function setStatus(kind, title, detail) {
 
 function openSettingsDialog() {
   renderVersionInfo();
+  syncSettingsForm();
   els.settingsDialog.hidden = false;
   els.settingsDialog.setAttribute('aria-hidden', 'false');
   els.apiKeyInput.focus();

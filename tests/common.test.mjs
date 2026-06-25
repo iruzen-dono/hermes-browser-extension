@@ -684,3 +684,14 @@ test('parseAgentPortsInput handles comma, space, and edge cases', async () => {
   assert.deepEqual(parseAgentPortsInput(''), []);
   assert.deepEqual(parseAgentPortsInput('junk,8642,999999,0,-1'), [8642]); // only valid in range
 });
+
+test('settings dialog render path refreshes appearance theme cards on open', () => {
+  const source = readFileSync(new URL('../extension/sidepanel.js', import.meta.url), 'utf8');
+  const match = source.match(/function openSettingsDialog\(\) \{([\s\S]*?)\n\}/);
+  assert.ok(match, 'openSettingsDialog should exist');
+  assert.match(match[1], /syncSettingsForm\(\)/, 'opening settings should refresh form controls, including theme cards');
+  assert.ok(
+    match[1].indexOf('syncSettingsForm()') < match[1].indexOf('settingsDialog.hidden = false'),
+    'appearance controls should render before the dialog is shown'
+  );
+});
