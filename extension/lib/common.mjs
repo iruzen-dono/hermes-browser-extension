@@ -11,6 +11,12 @@ export const GATEWAY_MODES = Object.freeze([
     title: 'Remote Hermes API server',
     defaultUrl: 'https://your-hermes-host.example.com',
   },
+  {
+    value: 'remote-dashboard',
+    label: 'Remote dashboard (WebSocket)',
+    title: 'Remote Hermes dashboard',
+    defaultUrl: 'https://your-hermes-host.example.com',
+  },
 ]);
 
 export const MODEL_EFFORTS = Object.freeze([
@@ -115,15 +121,30 @@ export function normalizedExtensionOrigin(value = '') {
   return String(value || '').trim().replace(/\/+$/, '');
 }
 
+// The remote-dashboard WebSocket is reachable from the (secure-context) side
+// panel only over https. Plain http to a non-loopback host is mixed-content
+// blocked, and a bare host like "example.com" fails to parse, so neither counts.
+export function isUsableRemoteGatewayUrl(value = '') {
+  try {
+    return new URL(String(value || '')).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function gatewayConnectionSummary({ gatewayMode = DEFAULT_SETTINGS.gatewayMode, gatewayUrl = DEFAULT_SETTINGS.gatewayUrl, extensionOrigin = '' } = {}) {
   const mode = gatewayModeDetails(gatewayMode);
   const normalizedUrl = normalizeGatewayUrl(gatewayUrl || mode.defaultUrl || DEFAULT_SETTINGS.gatewayUrl);
   const origin = normalizedExtensionOrigin(extensionOrigin);
   const corsOrigin = origin || 'chrome-extension://<extension-id>';
-  const isRemote = mode.value === 'remote-api';
-  const setupHint = isRemote
-    ? `Remote Hermes API setup: run the API server on the host machine with API_SERVER_ENABLED=true, API_SERVER_HOST=0.0.0.0, API_SERVER_PORT=8642, API_SERVER_KEY=<strong-token>, and API_SERVER_CORS_ORIGINS=${corsOrigin}. Put it behind Tailscale/VPN/HTTPS instead of exposing it naked to the public internet.`
-    : 'Local setup: keep Hermes Gateway/API Server running on this machine. Default URL is http://127.0.0.1:8642 and auth uses a scoped browser token or API_SERVER_KEY for manual setup.';
+  let setupHint;
+  if (mode.value === 'remote-dashboard') {
+    setupHint = 'Remote dashboard over WebSocket. Sign in to it in a browser tab. No key needed. Add a key to use an API server instead.';
+  } else if (mode.value === 'remote-api') {
+    setupHint = `Remote API server. Set API_SERVER_KEY and API_SERVER_CORS_ORIGINS=${corsOrigin} on the host. Clear the key to use the dashboard instead.`;
+  } else {
+    setupHint = 'Local API server (default http://127.0.0.1:8642). Paste its key below.';
+  }
   return {
     mode,
     normalizedUrl,

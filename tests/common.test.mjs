@@ -17,6 +17,7 @@ import {
   extractAssistantText,
   formatContextMeter,
   gatewayConnectionSummary,
+  isUsableRemoteGatewayUrl,
   formatYoutubeTranscript,
   groupModelsForMenu,
   groupSessionsForMenu,
@@ -116,7 +117,7 @@ test('isRestrictedUrl blocks browser internals and sensitive account categories'
 });
 
 test('gateway settings support explicit local and remote Hermes API servers', () => {
-  assert.deepEqual(GATEWAY_MODES.map((mode) => mode.value), ['local-api', 'remote-api']);
+  assert.deepEqual(GATEWAY_MODES.map((mode) => mode.value), ['local-api', 'remote-api', 'remote-dashboard']);
   assert.equal(DEFAULT_SETTINGS.gatewayMode, 'local-api');
 
   const remote = gatewayConnectionSummary({
@@ -127,13 +128,26 @@ test('gateway settings support explicit local and remote Hermes API servers', ()
   assert.equal(remote.mode.value, 'remote-api');
   assert.equal(remote.normalizedUrl, 'https://agent.example.com/hermes');
   assert.match(remote.title, /Remote Hermes API server/);
-  assert.match(remote.setupHint, /API_SERVER_HOST=0\.0\.0\.0/);
   assert.match(remote.setupHint, /API_SERVER_CORS_ORIGINS=chrome-extension:\/\/abc123/);
   assert.match(remote.setupHint, /API_SERVER_KEY/);
 
   const local = gatewayConnectionSummary({ gatewayMode: 'nonsense', gatewayUrl: '' });
   assert.equal(local.mode.value, 'local-api');
   assert.equal(local.normalizedUrl, 'http://127.0.0.1:8642');
+
+  const dashboard = gatewayConnectionSummary({ gatewayMode: 'remote-dashboard', gatewayUrl: 'https://host.ts.net' });
+  assert.equal(dashboard.mode.value, 'remote-dashboard');
+  assert.match(dashboard.title, /Remote Hermes dashboard/);
+  assert.match(dashboard.setupHint, /WebSocket/);
+  assert.match(dashboard.setupHint, /sign in/i);
+});
+
+test('isUsableRemoteGatewayUrl requires a parseable https URL', () => {
+  assert.equal(isUsableRemoteGatewayUrl('https://kurokami.example.ts.net'), true);
+  assert.equal(isUsableRemoteGatewayUrl('https://host.ts.net:8643/hermes'), true);
+  assert.equal(isUsableRemoteGatewayUrl('http://host.ts.net'), false); // non-loopback http is mixed-content blocked
+  assert.equal(isUsableRemoteGatewayUrl('example.com'), false); // no scheme, fails to parse
+  assert.equal(isUsableRemoteGatewayUrl(''), false);
 });
 
 test('manifest allows remote Hermes API server connections from extension pages', () => {
@@ -142,6 +156,7 @@ test('manifest allows remote Hermes API server connections from extension pages'
   assert.match(csp, /connect-src/);
   assert.match(csp, /http:/);
   assert.match(csp, /https:/);
+  assert.match(csp, /wss:/); // remote-dashboard mode connects over the dashboard WebSocket
   assert.ok(manifest.host_permissions.includes('http://*/*'));
   assert.ok(manifest.host_permissions.includes('https://*/*'));
 });

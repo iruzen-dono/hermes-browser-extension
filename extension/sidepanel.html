@@ -239,13 +239,21 @@
             </div>
           </div>
 
-        <label>
-          Gateway mode
-          <select id="gatewayModeInput" name="gatewayMode">
-            <option value="local-api">Local API server on this machine</option>
-            <option value="remote-api">Remote API server on another machine</option>
+        <div class="gateway-mode" role="radiogroup" aria-label="Gateway location">
+          <button class="conn-mode-card" type="button" data-gateway-location="local" role="radio" aria-checked="true">
+            <span class="conn-mode-head"><span class="conn-mode-title">Local gateway</span><span class="conn-mode-check" aria-hidden="true"></span></span>
+            <span class="conn-mode-desc">Hermes on this machine. The default, works offline.</span>
+          </button>
+          <button class="conn-mode-card" type="button" data-gateway-location="remote" role="radio" aria-checked="false">
+            <span class="conn-mode-head"><span class="conn-mode-title">Remote gateway</span><span class="conn-mode-check" aria-hidden="true"></span></span>
+            <span class="conn-mode-desc">Hermes on another machine, reached over https.</span>
+          </button>
+          <select id="gatewayModeInput" name="gatewayMode" hidden>
+            <option value="local-api">Local API server</option>
+            <option value="remote-api">Remote API server</option>
+            <option value="remote-dashboard">Remote dashboard (WebSocket)</option>
           </select>
-        </label>
+        </div>
 
         <label>
           Gateway URL
@@ -255,7 +263,7 @@
 
         <label>
           API key / browser token
-          <input id="apiKeyInput" name="apiKey" type="password" autocomplete="off" placeholder="Connect automatically or paste API_SERVER_KEY" />
+          <input id="apiKeyInput" name="apiKey" type="password" autocomplete="off" placeholder="API key (blank = dashboard)" />
         </label>
 
         <label>

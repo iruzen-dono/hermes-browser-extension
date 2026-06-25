@@ -109,7 +109,7 @@ In the side panel first-run screen:
 1. Click **Connect to Hermes** and approve locally if your Hermes Desktop/gateway supports the approval flow.
 2. If approval is not available yet, click **Manual setup**.
 3. Enter:
-   - Gateway mode: **Local API server** or **Remote API server**.
+   - Gateway: **Local** or **Remote**. In Remote, paste an API key to use a remote API server, or leave it blank to connect over the dashboard WebSocket.
    - Gateway URL: `http://127.0.0.1:8642`, `http://<tailscale-ip>:8642`, or your HTTPS reverse-proxy URL.
    - API key / browser token: your scoped browser token or `API_SERVER_KEY`.
    - Session ID: `hermes-browser-extension`
@@ -127,6 +127,18 @@ After connection, the side panel automatically loads from the connected Hermes g
 - `/v1/capabilities` — feature flags such as audio transcription and Browser upload support.
 
 The DOM/context chip should show a non-zero page-context count on normal readable pages. Browser internal pages such as `chrome://extensions` are intentionally restricted.
+
+### Remote dashboard mode (no API server)
+
+If you run Hermes elsewhere and only expose the OAuth-gated dashboard (not the API server), select **Remote**, enter the dashboard's https URL, and leave the API key blank. With no key the extension connects over the dashboard's `/api/ws` socket instead of the REST API server, so you don't have to enable or expose `API_SERVER_*` at all. (Paste a key and it uses a remote API server instead.)
+
+Auth uses a single-use WebSocket ticket minted from a signed-in dashboard tab:
+
+- Open the dashboard URL in a normal browser tab and sign in, and keep that tab around.
+- The extension mints the ticket first-party from that tab (the dashboard's CORS and `SameSite=Lax` cookie make a direct cross-origin mint impossible), then opens the socket. No API key is used.
+- **Test connection** opens the socket and loads models, which confirms the whole path. Sessions list, open, and create over the socket too.
+
+Limitations in this mode: image attachments are inline-only, and the skills/profiles lists are unavailable, because those are REST-only and the dashboard's REST surface is not reachable cross-origin.
 
 ## Install with Hermes / Computer Use
 

@@ -1046,6 +1046,16 @@ textarea:focus, input:focus, select:focus { border-color: var(--hermes-accent); 
   line-height: 1;
 }
 .secondary { background: var(--hermes-paper); color: var(--hermes-ink); }
+#testConnectionButton.success {
+  background: rgba(var(--hermes-accent-rgb), 0.18);
+  color: var(--hermes-ink);
+  border-color: var(--hermes-accent);
+}
+#testConnectionButton.error {
+  background: rgba(255, 77, 114, 0.16);
+  color: var(--hermes-ink);
+  border-color: var(--danger);
+}
 #sendButton, #saveSettingsButton, #connectButton { background: var(--hermes-primary-bg); color: var(--hermes-primary-fg); border-color: var(--hermes-primary-border); }
 #sendButton:hover, #saveSettingsButton:hover, #connectButton:hover { background: var(--hermes-paper); color: var(--hermes-ink); border-color: var(--hermes-line-strong); }
 
@@ -1505,6 +1515,34 @@ textarea:focus, input:focus, select:focus { border-color: var(--hermes-accent); 
   background: var(--hermes-primary-bg);
   color: var(--hermes-primary-fg);
 }
+.gateway-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 4px;
+}
+.conn-mode-card {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--hermes-line);
+  background: var(--hermes-paper);
+  color: var(--hermes-ink);
+  padding: 9px 10px;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.conn-mode-card:hover,
+.conn-mode-card.selected {
+  border-color: var(--hermes-accent);
+  box-shadow: inset 0 0 0 1px var(--hermes-accent);
+}
+.conn-mode-head { display: flex; align-items: center; gap: 6px; }
+.conn-mode-title { font-size: 11px; font-weight: 600; }
+.conn-mode-check { margin-left: auto; color: var(--hermes-accent); font-size: 11px; line-height: 1; }
+.conn-mode-card.selected .conn-mode-check::after { content: "\2713"; }
+.conn-mode-desc { font-size: 9.5px; line-height: 1.3; color: var(--hermes-muted); }
+#gatewayHelp { overflow-wrap: anywhere; }
 .theme-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
