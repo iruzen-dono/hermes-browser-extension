@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildHermesReviewPrompt,
+  callHermesReview,
   eventReviewTarget,
   formatReviewComment,
   shouldSkipReview,
@@ -54,4 +55,27 @@ test('formatReviewComment includes a stable marker and commands caveat', () => {
   assert.match(body, /Hermes Agent Review/);
   assert.match(body, /Looks good\./);
   assert.match(body, /Automated review/);
+});
+
+test('callHermesReview times out stuck local Hermes requests', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (_url, options = {}) => new Promise((_resolve, reject) => {
+    options.signal?.addEventListener('abort', () => {
+      const error = new Error('aborted');
+      error.name = 'AbortError';
+      reject(error);
+    });
+  });
+  try {
+    await assert.rejects(
+      callHermesReview('review this', {
+        HERMES_REVIEW_GATEWAY_URL: 'http://127.0.0.1:8642',
+        HERMES_REVIEW_API_KEY: 'test-token',
+        HERMES_REVIEW_TIMEOUT_MS: '1',
+      }),
+      /timed out after 1ms/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

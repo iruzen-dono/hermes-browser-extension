@@ -110,30 +110,41 @@ export async function fetchPullRequestDiff({ repo, number, token }) {
 
 export async function callHermesReview(prompt, env = process.env) {
   const base = normalizeGatewayUrl(env.HERMES_REVIEW_GATEWAY_URL);
-  const response = await fetch(`${base}/v1/chat/completions`, {
-    method: 'POST',
-    headers: {
-      ...authHeaders(env.HERMES_REVIEW_API_KEY),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: env.HERMES_REVIEW_MODEL || DEFAULT_MODEL,
-      stream: false,
-      messages: [
-        { role: 'system', content: 'You are Hermes Agent performing a GitHub review. Be concise, specific, and safety-minded.' },
-        { role: 'user', content: prompt },
-      ],
-    }),
-  });
-  const text = await response.text();
-  let payload = {};
+  const timeoutMs = Math.max(1, Number(env.HERMES_REVIEW_TIMEOUT_MS || 180_000) || 180_000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    payload = JSON.parse(text);
-  } catch {
-    payload = { error: text };
+    const response = await fetch(`${base}/v1/chat/completions`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        ...authHeaders(env.HERMES_REVIEW_API_KEY),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: env.HERMES_REVIEW_MODEL || DEFAULT_MODEL,
+        stream: false,
+        messages: [
+          { role: 'system', content: 'You are Hermes Agent performing a GitHub review. Be concise, specific, and safety-minded.' },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    });
+    const text = await response.text();
+    let payload = {};
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { error: text };
+    }
+    if (!response.ok) throw new Error(`Hermes review request failed (${response.status}): ${text.slice(0, 700)}`);
+    return payload?.choices?.[0]?.message?.content || payload?.message?.content || payload?.output_text || payload?.output || text;
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error(`Hermes review request timed out after ${timeoutMs}ms`);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-  if (!response.ok) throw new Error(`Hermes review request failed (${response.status}): ${text.slice(0, 700)}`);
-  return payload?.choices?.[0]?.message?.content || payload?.message?.content || payload?.output_text || payload?.output || text;
 }
 
 export async function upsertReviewComment({ repo, target, token, body }) {
