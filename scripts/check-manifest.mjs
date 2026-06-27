@@ -2,8 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
+const packagePath = path.join(root, 'package.json');
+const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const manifestPath = path.join(root, 'extension', 'manifest.json');
+const rootManifestPath = path.join(root, 'manifest.json');
+const distManifestPath = path.join(root, 'dist', 'manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const rootManifestExists = fs.existsSync(rootManifestPath);
+const distManifest = fs.existsSync(distManifestPath) ? JSON.parse(fs.readFileSync(distManifestPath, 'utf8')) : null;
 const requiredFiles = [
   manifest.background?.service_worker,
   manifest.side_panel?.default_path,
@@ -29,6 +35,15 @@ const requiredFiles = [
 const errors = [];
 
 if (manifest.manifest_version !== 3) errors.push('manifest_version must be 3');
+if (manifest.version !== packageJson.version) {
+  errors.push(`extension/manifest.json version ${manifest.version} must match package.json version ${packageJson.version}`);
+}
+if (rootManifestExists) {
+  errors.push('root manifest.json should not exist; it makes the repo root look loadable. Build with npm run build and load generated dist/ instead.');
+}
+if (distManifest && distManifest.version !== packageJson.version) {
+  errors.push(`dist/manifest.json version ${distManifest.version} must match package.json version ${packageJson.version}; run npm run build`);
+}
 if (!manifest.permissions?.includes('sidePanel')) errors.push('sidePanel permission missing');
 if (!manifest.permissions?.includes('storage')) errors.push('storage permission missing');
 if (manifest.permissions?.includes('debugger')) errors.push('debugger permission is intentionally not allowed in v0.1');
