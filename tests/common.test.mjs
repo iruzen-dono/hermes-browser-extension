@@ -34,6 +34,7 @@ import {
   normalizeHermesSessions,
   normalizeHermesSkills,
   pairingFailureMessage,
+  privacySafeTabForPrompt,
   redactSensitiveText,
   renderMarkdown,
   reasoningEffortShortLabel,
@@ -140,6 +141,31 @@ test('isRestrictedUrl blocks browser internals and sensitive account categories'
   assert.equal(isRestrictedUrl('chrome://extensions'), true);
   assert.equal(isRestrictedUrl('https://mybank.example.com/accounts'), true);
   assert.equal(isRestrictedUrl('https://github.com/NousResearch/hermes-agent'), false);
+});
+
+test('privacySafeTabForPrompt redacts sensitive tab titles and URLs before prompt assembly', () => {
+  const sensitive = privacySafeTabForPrompt({ title: 'My Bank · Account 1234', url: 'https://mybank.example.com/accounts/1234' });
+  assert.equal(sensitive.title, '(restricted tab)');
+  assert.equal(sensitive.url, '(omitted by privacy guard)');
+
+  const summary = summarizeTabs([
+    { title: 'My Bank · Account 1234', url: 'https://mybank.example.com/accounts/1234', active: true },
+    { title: 'Hermes Docs', url: 'https://hermes-agent.nousresearch.com/docs' },
+  ]);
+  assert.doesNotMatch(summary, /My Bank|accounts\/1234/);
+  assert.match(summary, /\(restricted tab\)/);
+  assert.match(summary, /Hermes Docs/);
+
+  const prompt = buildHermesPrompt({
+    userText: 'What am I seeing?',
+    activeTab: { title: 'My Bank · Account 1234', url: 'https://mybank.example.com/accounts/1234' },
+    tabs: [{ title: 'My Bank · Account 1234', url: 'https://mybank.example.com/accounts/1234', active: true }],
+    pageContext: { restricted: true, reason: 'Sensitive page', text: '', selectedText: '', meta: {} },
+    settings: DEFAULT_SETTINGS,
+  });
+  assert.doesNotMatch(prompt, /My Bank|accounts\/1234/);
+  assert.match(prompt, /Active tab title: \(restricted tab\)/);
+  assert.match(prompt, /Active tab URL: \(omitted by privacy guard\)/);
 });
 
 test('gateway settings support explicit local and remote Hermes API servers', () => {
