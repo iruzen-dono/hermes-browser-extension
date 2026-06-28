@@ -68,6 +68,11 @@ import {
   discoverModelsFromSessions,
   mergeModelsWithRegistry,
 } from './lib/model-discovery.mjs';
+import {
+  BUILTIN_COMMANDS,
+  getCommand,
+  parseCommandInput,
+} from './lib/commands.mjs';
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -164,6 +169,8 @@ const els = {
   agentPickerStatus: $('#agentPickerStatus'),
   themeGrid: $('#themeGrid'),
   colorModeButtons: Array.from(document.querySelectorAll('[data-color-mode]')),
+  quickMoreMenu: $('#quickMoreMenu'),
+  quickActionsScroll: $('#quickActionsScroll'),
   template: $('#messageTemplate'),
 };
 
@@ -1790,12 +1797,48 @@ function replaceActiveSkillToken(command = '') {
 
 function renderSkillSuggestions() {
   if (!els.skillMenu) return;
-  const suggestions = skillSuggestionsForInput(els.input?.value || '', availableSkills);
-  els.skillMenu.innerHTML = '';
-  if (!suggestions.length) {
+  const value = els.input?.value || '';
+  const suggestions = skillSuggestionsForInput(value, availableSkills);
+
+  // If user types /, merge builtin commands with skill suggestions
+  let builtinSuggestions = [];
+  if (value.startsWith('/')) {
+    const needle = value.slice(1).toLowerCase();
+    builtinSuggestions = BUILTIN_COMMANDS.filter((c) => {
+      return !needle || c.name.startsWith(needle) || c.description.toLowerCase().includes(needle);
+    }).slice(0, 4);
+  }
+
+  if (!builtinSuggestions.length && !suggestions.length) {
     els.skillMenu.hidden = true;
     return;
   }
+
+  els.skillMenu.innerHTML = '';
+
+  // Render builtin commands first
+  for (const cmd of builtinSuggestions) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'skill-option builtin-cmd';
+    button.setAttribute('role', 'option');
+    button.dataset.command = '/' + cmd.name;
+    const name = document.createElement('span');
+    name.className = 'skill-option-name';
+    name.textContent = cmd.icon + ' ' + cmd.name;
+    const command = document.createElement('span');
+    command.className = 'skill-option-command';
+    command.textContent = '/' + cmd.name;
+    button.append(name, command);
+    button.addEventListener('click', () => {
+      els.input.value = '/' + cmd.name + ' ';
+      els.input.focus();
+      if (!cmd.requiresInput) els.composer.requestSubmit();
+    });
+    els.skillMenu.appendChild(button);
+  }
+
+  // Render gateway skill suggestions
   for (const skill of suggestions) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -1813,6 +1856,41 @@ function renderSkillSuggestions() {
     els.skillMenu.appendChild(button);
   }
   els.skillMenu.hidden = false;
+}
+
+/* ── Quick commands overflow menu ── */
+function renderQuickMoreMenu(category = 'all') {
+  if (!els.quickMoreMenu) return;
+  const commands = category === 'all'
+    ? BUILTIN_COMMANDS
+    : BUILTIN_COMMANDS.filter((c) => c.category === category);
+  if (!commands.length) { els.quickMoreMenu.hidden = true; return; }
+
+  els.quickMoreMenu.innerHTML = '';
+  for (const cmd of commands) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'quick-more-item';
+    item.dataset.command = cmd.name;
+    const icon = document.createElement('span');
+    icon.className = 'qmi-icon';
+    icon.textContent = cmd.icon || '/';
+    const label = document.createElement('span');
+    label.className = 'qmi-label';
+    label.textContent = cmd.name + ' — ' + cmd.description;
+    const categoryTag = document.createElement('span');
+    categoryTag.className = 'qmi-category';
+    categoryTag.textContent = cmd.category || '';
+    item.append(icon, label, categoryTag);
+    item.addEventListener('click', async () => {
+      els.quickMoreMenu.hidden = true;
+      els.input.value = '/' + cmd.name + ' ';
+      els.input.focus();
+      if (!cmd.requiresInput) els.composer.requestSubmit();
+    });
+    els.quickMoreMenu.appendChild(item);
+  }
+  els.quickMoreMenu.hidden = false;
 }
 
 function renderProfiles() {
@@ -3381,7 +3459,23 @@ async function askHermes(userText, turnAttachments = [...attachments]) {
   try {
     const preparedAttachments = await saveImageAttachmentsForTurn(turnAttachments);
     const context = await refreshContext();
-    const promptUserText = userTextWithAttachments(userText, preparedAttachments);
+
+    // Detect /command at the start of userText and resolve to a command prompt
+    const parsedCommand = parseCommandInput(userText);
+    let promptUserText;
+    if (parsedCommand) {
+      const resolved = parsedCommand.command.prompt({
+        activeTab: context.activeTab,
+        tabs: context.tabs,
+        pageContext: context.pageContext,
+        settings,
+      });
+      promptUserText = parsedCommand.userInput
+        ? resolved + '\n\nThe user added: ' + parsedCommand.userInput
+        : resolved;
+    } else {
+      promptUserText = userTextWithAttachments(userText, preparedAttachments);
+    }
     const displayUserText = preparedAttachments.length
       ? `${userText || 'Attachment-only turn.'}\n${preparedAttachments.map((attachment) => `${attachmentIcon(attachment.kind)} ${attachment.label}`).join('\n')}`
       : userText;
@@ -3859,6 +3953,35 @@ function bindEvents() {
       els.input.value = button.dataset.prompt || '';
       els.composer.requestSubmit();
     });
+  });
+
+  // Wire built-in quick-command buttons (data-command)
+  document.querySelectorAll('[data-command]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const cmdName = button.dataset.command;
+      if (!cmdName) return;
+      const parsed = parseCommandInput('/' + cmdName);
+      if (parsed) {
+        els.input.value = '/' + cmdName + ' ';
+        els.input.focus();
+        if (!parsed.command.requiresInput) els.composer.requestSubmit();
+      }
+    });
+  });
+
+  // Wire overflow menu button (⋯) only
+  const moreBtn = document.querySelector('.quick-cmd-more');
+  if (moreBtn) {
+    moreBtn.addEventListener('click', (event) => {
+      if (!els.quickMoreMenu) return;
+      event.stopPropagation();
+      renderQuickMoreMenu('all');
+    });
+  }
+
+  // Close overflow menu on outside click
+  document.addEventListener('click', () => {
+    if (els.quickMoreMenu && !els.quickMoreMenu.hidden) els.quickMoreMenu.hidden = true;
   });
   chrome.tabs?.onActivated?.addListener?.(() => refreshContext());
   chrome.tabs?.onUpdated?.addListener?.((_tabId, changeInfo) => {

@@ -78,10 +78,16 @@
         </section>
 
         <section class="quick-actions" aria-label="Quick actions">
-          <button data-prompt="What am I looking at? Give me the useful context and anything I should notice.">Current page</button>
-          <button data-prompt="Summarize this page clearly and call out the important takeaways.">Summary</button>
-          <button data-prompt="Compare the active tab with my other open tabs and tell me what connects them.">Compare tabs</button>
-          <button data-prompt="Use the selected text on this page as the focus. Explain it and suggest next steps.">Selection</button>
+          <div id="quickActionsScroll" class="quick-actions-scroll" role="tablist" aria-label="Quick commands">
+            <button class="quick-cmd" data-command="summarize" role="tab" data-category="context">📋 Summarize</button>
+            <button class="quick-cmd" data-command="tldr" role="tab" data-category="context">⚡ TL;DR</button>
+            <button class="quick-cmd" data-command="extract" data-more="extract" role="tab">🔍 Extract</button>
+            <button class="quick-cmd" data-command="translate" data-more="content" role="tab">🌍 Translate</button>
+            <button class="quick-cmd" data-command="explain" role="tab" data-category="content">💡 Explain</button>
+            <button class="quick-cmd" data-command="tabs" role="tab" data-category="context">📑 Tabs</button>
+            <button class="quick-cmd quick-cmd-more" data-more="all" role="tab" title="All commands">⋯</button>
+          </div>
+          <div id="quickMoreMenu" class="quick-more-menu" hidden role="menu"></div>
         </section>
 
         <section id="messages" class="messages" aria-live="polite"></section>
