@@ -43,6 +43,7 @@ import {
   shouldStopSessionPaging,
   shouldFallbackToWebSpeechForTranscription,
   shouldSubmitComposerKey,
+  shouldAutoOpenSessionGroup,
   summarizeTabs,
   compareVersionStrings,
   autoSessionTitleFromText,
@@ -503,6 +504,24 @@ test('normalizeHermesSessions and groupSessionsForMenu mirror Hermes Desktop sou
   const groups = groupSessionsForMenu(sessions, 'api_1');
   assert.deepEqual(groups.map((group) => group.label), ['Hermes Browser Extension', 'API', 'Telegram']);
   assert.equal(groups[1].sessions[0].selected, true);
+});
+
+test('session source groups can stay collapsed after user closes the selected group', () => {
+  const sessions = normalizeHermesSessions({ data: [
+    { id: 'api_1', title: 'API session', source: 'api_server', last_active: 30 },
+    { id: 'hb_1', title: 'Hermes Browser Extension', source: 'hermes_browser', last_active: 40 },
+  ] });
+  const groups = groupSessionsForMenu(sessions, 'api_1');
+  const apiGroup = groups.find((group) => group.label === 'API');
+  const browserGroup = groups.find((group) => group.label === 'Hermes Browser Extension');
+  assert.equal(shouldAutoOpenSessionGroup(apiGroup, groups), true);
+  assert.equal(shouldAutoOpenSessionGroup(apiGroup, groups, ['API']), false);
+  assert.equal(shouldAutoOpenSessionGroup(browserGroup, groups), false);
+
+  const onlyBrowserGroup = groupSessionsForMenu(sessions, 'missing', 'browser');
+  assert.equal(onlyBrowserGroup.length, 1);
+  assert.equal(shouldAutoOpenSessionGroup(onlyBrowserGroup[0], onlyBrowserGroup), true);
+  assert.equal(shouldAutoOpenSessionGroup(onlyBrowserGroup[0], onlyBrowserGroup, ['Hermes Browser Extension']), false);
 });
 
 test('skill helpers normalize slash commands and suggest matches from / or @ input', () => {

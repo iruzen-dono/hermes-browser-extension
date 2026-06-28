@@ -865,6 +865,14 @@ export function groupSessionsForMenu(sessions = [], selectedSessionId = DEFAULT_
   return [...groups.values()].filter((group) => group.sessions.length);
 }
 
+export function shouldAutoOpenSessionGroup(group = {}, groups = [], closedLabels = []) {
+  const label = String(group?.label || '');
+  const closed = new Set(Array.from(closedLabels || []).map(String));
+  if (!label || closed.has(label)) return false;
+  const containsSelected = Array.isArray(group?.sessions) && group.sessions.some((session) => session?.selected);
+  return containsSelected || groups.length === 1;
+}
+
 export function skillCommandForName(name = '') {
   return `/${String(name || '')
     .trim()

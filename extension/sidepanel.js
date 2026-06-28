@@ -43,6 +43,7 @@ import {
   shouldStopSessionPaging,
   shouldFallbackToWebSpeechForTranscription,
   shouldSubmitComposerKey,
+  shouldAutoOpenSessionGroup,
   skillSuggestionsForInput,
 } from './lib/common.mjs';
 import { extractYouTubeVideoId } from './lib/transcript.mjs';
@@ -201,6 +202,7 @@ let availableProfiles = [];
 let attachments = [];
 let selectedModelProvider = '';
 const openSessionGroups = new Set();
+const closedSessionGroups = new Set();
 let sending = false;
 let queuedTurn = null;
 let activeAbortController = null;
@@ -2510,8 +2512,7 @@ function renderSessionMenu(query = els.sessionSearchInput?.value || '') {
   }
 
   for (const group of groups) {
-    const containsSelected = group.sessions.some((session) => session.selected);
-    if ((containsSelected || groups.length === 1) && !openSessionGroups.has(group.label)) openSessionGroups.add(group.label);
+    if (shouldAutoOpenSessionGroup(group, groups, closedSessionGroups)) openSessionGroups.add(group.label);
     const isOpen = searching || openSessionGroups.has(group.label);
 
     const title = document.createElement('button');
@@ -2520,8 +2521,13 @@ function renderSessionMenu(query = els.sessionSearchInput?.value || '') {
     title.setAttribute('aria-expanded', String(isOpen));
     title.innerHTML = `<span>${isOpen ? '▾' : '▸'} ${group.label}</span><strong>${group.sessions.length}</strong>`;
     title.addEventListener('click', () => {
-      if (openSessionGroups.has(group.label)) openSessionGroups.delete(group.label);
-      else openSessionGroups.add(group.label);
+      if (openSessionGroups.has(group.label)) {
+        openSessionGroups.delete(group.label);
+        closedSessionGroups.add(group.label);
+      } else {
+        openSessionGroups.add(group.label);
+        closedSessionGroups.delete(group.label);
+      }
       renderSessionMenu(els.sessionSearchInput.value);
     });
     els.sessionMenuList.appendChild(title);
