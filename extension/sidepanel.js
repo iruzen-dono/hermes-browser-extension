@@ -2497,6 +2497,29 @@ function setQuickCommandMenuOpen(open) {
   if (!els.quickMoreMenu) return;
   els.quickMoreMenu.hidden = !open;
   els.commandMenuButton?.setAttribute('aria-expanded', String(Boolean(open)));
+  if (!open) clearQuickCommandDetail();
+}
+
+function clearQuickCommandDetail() {
+  const detail = els.quickMoreMenu?.querySelector('[data-command-detail]');
+  if (detail) detail.hidden = true;
+  els.quickMoreMenu?.classList.remove('has-command-detail');
+}
+
+function showQuickCommandDetail(cmd) {
+  const detail = els.quickMoreMenu?.querySelector('[data-command-detail]');
+  if (!detail || !cmd) return;
+  detail.querySelector('[data-command-detail-token]').textContent = `/${cmd.name}`;
+  detail.querySelector('[data-command-detail-category]').textContent = cmd.category || 'Command';
+  detail.querySelector('[data-command-detail-description]').textContent = cmd.description;
+  detail.querySelector('[data-command-detail-hint]').textContent = cmd.promptHint || (cmd.requiresInput
+    ? 'Add instructions after the slash command before sending.'
+    : 'Runs immediately against the current browser context.');
+  detail.querySelector('[data-command-detail-footnote]').textContent = cmd.requiresInput
+    ? 'Click to insert, then add details.'
+    : 'Click or press Enter to run.';
+  detail.hidden = false;
+  els.quickMoreMenu?.classList.add('has-command-detail');
 }
 
 function applyQuickCommand(cmd) {
@@ -2524,12 +2547,50 @@ function renderQuickMoreMenu(category = 'all') {
   header.append(headerLabel, headerHint);
   els.quickMoreMenu.appendChild(header);
 
+  const detail = document.createElement('aside');
+  detail.id = 'quickCommandDetail';
+  detail.className = 'quick-command-detail';
+  detail.dataset.commandDetail = 'true';
+  detail.hidden = true;
+  detail.setAttribute('aria-live', 'polite');
+  detail.setAttribute('aria-label', 'Command details');
+
+  const detailTop = document.createElement('div');
+  detailTop.className = 'qmd-top';
+  const detailToken = document.createElement('span');
+  detailToken.className = 'qmd-token';
+  detailToken.dataset.commandDetailToken = 'true';
+  const detailCategory = document.createElement('span');
+  detailCategory.className = 'qmd-category';
+  detailCategory.dataset.commandDetailCategory = 'true';
+  detailTop.append(detailToken, detailCategory);
+
+  const detailDescription = document.createElement('strong');
+  detailDescription.className = 'qmd-description';
+  detailDescription.dataset.commandDetailDescription = 'true';
+
+  const detailHint = document.createElement('p');
+  detailHint.className = 'qmd-hint';
+  detailHint.dataset.commandDetailHint = 'true';
+
+  const detailFootnote = document.createElement('span');
+  detailFootnote.className = 'qmd-footnote';
+  detailFootnote.dataset.commandDetailFootnote = 'true';
+
+  detail.append(detailTop, detailDescription, detailHint, detailFootnote);
+  els.quickMoreMenu.appendChild(detail);
+
+  const list = document.createElement('div');
+  list.className = 'quick-command-list';
+  list.setAttribute('role', 'none');
+
   for (const cmd of commands) {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'quick-more-item';
     item.dataset.command = cmd.name;
     item.setAttribute('role', 'menuitem');
+    item.setAttribute('aria-describedby', 'quickCommandDetail');
 
     const token = document.createElement('span');
     token.className = 'qmi-token';
@@ -2546,9 +2607,13 @@ function renderQuickMoreMenu(category = 'all') {
     copy.append(description, categoryTag);
 
     item.append(token, copy);
+    item.addEventListener('mouseenter', () => showQuickCommandDetail(cmd));
+    item.addEventListener('focus', () => showQuickCommandDetail(cmd));
     item.addEventListener('click', () => applyQuickCommand(cmd));
-    els.quickMoreMenu.appendChild(item);
+    list.appendChild(item);
   }
+  els.quickMoreMenu.appendChild(list);
+  showQuickCommandDetail(commands[0]);
   setQuickCommandMenuOpen(true);
 }
 

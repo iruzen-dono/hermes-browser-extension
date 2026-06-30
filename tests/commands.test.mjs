@@ -72,3 +72,25 @@ test('suggestCommands searches names, aliases, and descriptions', () => {
   assert.equal(suggestCommands('/summary')[0].name, 'summarize');
   assert.ok(suggestCommands('/links').some((command) => command.name === 'extract'));
 });
+
+test('composer command menu exposes full hover and focus descriptions', () => {
+  const js = readFileSync(new URL('../extension/sidepanel.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../extension/sidepanel.css', import.meta.url), 'utf8');
+
+  assert.match(js, /quick-command-detail/);
+  assert.match(js, /showQuickCommandDetail/);
+  assert.match(js, /promptHint/);
+  assert.match(js, /mouseenter/);
+  assert.match(js, /focus/);
+  assert.match(js, /aria-describedby/);
+  assert.match(js, /showQuickCommandDetail\(commands\[0\]\)/);
+  assert.doesNotMatch(js, /item\.title\s*=/);
+  assert.doesNotMatch(js, /item\.setAttribute\(['"]title['"]\)/);
+  assert.match(css, /\.quick-command-detail/);
+  assert.match(css, /\.quick-more-menu\.has-command-detail/);
+  assert.match(css, /\.quick-command-detail\s*\{[^}]*height:\s*108px/s);
+  assert.match(css, /\.quick-command-detail\s*\{[^}]*transition:\s*none/s);
+  assert.match(css, /\.quick-more-menu\s*\{[^}]*overflow:\s*hidden/s);
+  assert.match(css, /\.quick-command-list\s*\{[^}]*overflow-y:\s*auto/s);
+  assert.doesNotMatch(css, /\.qmi-description\s*\{[^}]*white-space:\s*normal/s);
+});
