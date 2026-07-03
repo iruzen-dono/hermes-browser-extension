@@ -374,11 +374,11 @@ Useful links:
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=abundantbeing%2Fhermes-browser-extension&type=timeline&logscale=&legend=top-left">
+<a href="https://www.star-history.com/?repos=abundantbeing%2Fhermes-browser-extension&type=timeline&legend=bottom-right">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=abundantbeing/hermes-browser-extension&type=timeline&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=abundantbeing/hermes-browser-extension&type=timeline&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=abundantbeing/hermes-browser-extension&type=timeline&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=abundantbeing/hermes-browser-extension&type=timeline&theme=dark&legend=bottom-right" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=abundantbeing/hermes-browser-extension&type=timeline&legend=bottom-right" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=abundantbeing/hermes-browser-extension&type=timeline&legend=bottom-right" />
  </picture>
 </a>
 
