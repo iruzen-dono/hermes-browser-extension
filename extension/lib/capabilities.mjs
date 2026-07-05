@@ -10,6 +10,16 @@ const WARNING_CAPABILITY_COPY = Object.freeze({
 
 const DEFAULT_ENDPOINTS = Object.freeze({});
 
+export const BROWSER_CAPABILITY_FLAGS = Object.freeze({
+  browserContextProvider: 'browser_context_provider',
+  browserContextUpload: 'browser_context_upload',
+  browserContextStatus: 'browser_context_status',
+  browserCompanionPlugin: 'browser_companion_plugin',
+  pluginActions: 'plugin_actions',
+  approvalEvents: 'approval_events',
+  browserControl: 'browser_control',
+});
+
 export const DEFAULT_GATEWAY_CAPABILITIES = Object.freeze({
   source: 'unknown',
   platform: '',
@@ -32,6 +42,14 @@ export const DEFAULT_GATEWAY_CAPABILITIES = Object.freeze({
   audioTranscription: false,
   browserPairing: false,
   imageUpload: false,
+  browserContextProvider: true,
+  browserContextUpload: false,
+  browserContextStatus: false,
+  browserCompanionPlugin: false,
+  browserEvents: false,
+  pluginActions: false,
+  approvalEvents: false,
+  browserControl: false,
   dashboardWs: false,
   endpoints: DEFAULT_ENDPOINTS,
   raw: null,
@@ -86,6 +104,14 @@ function legacyCapabilities({ healthOk = false, hasApiKey = false, warning = '' 
     audioTranscription: false,
     browserPairing: false,
     imageUpload: false,
+    browserContextProvider: true,
+    browserContextUpload: false,
+    browserContextStatus: false,
+    browserCompanionPlugin: false,
+    browserEvents: false,
+    pluginActions: false,
+    approvalEvents: false,
+    browserControl: false,
     endpoints: {},
     warnings: [
       'Legacy Hermes gateway compatibility mode — /v1/capabilities was unavailable, so browser-specific features stay disabled unless proven by direct probes.',
@@ -126,6 +152,16 @@ export function normalizeGatewayCapabilities(payload = null, { healthOk = false,
     audioTranscription: inferredFeature(features, endpoints, ['audio_api', 'audio_transcription', 'audioTranscription'], ['audio_transcribe', 'audio_transcription']),
     browserPairing: inferredFeature(features, endpoints, ['browser_extension_pairing', 'browserPairing'], ['browser_extension_pair_start', 'browser_pairing', 'pair_start']),
     imageUpload: inferredFeature(features, endpoints, ['browser_image_upload', 'image_upload', 'imageUpload'], ['browser_image_upload', 'image_upload', 'uploads_images']),
+    browserContextProvider: true,
+    browserContextUpload: inferredFeature(features, endpoints, [BROWSER_CAPABILITY_FLAGS.browserContextUpload, 'browserContextUpload'], ['browser_context_update', 'browser_context']),
+    browserContextStatus: inferredFeature(features, endpoints, [BROWSER_CAPABILITY_FLAGS.browserContextStatus, 'browserContextStatus'], ['browser_context_status']),
+    browserCompanionPlugin: inferredFeature(features, endpoints, [BROWSER_CAPABILITY_FLAGS.browserCompanionPlugin, 'browserCompanionPlugin'], ['browser_companion_status', 'browser_context_status']),
+    browserEvents: inferredFeature(features, endpoints, ['browser_events', 'browserEvents', 'run_events_sse', 'run_events'], ['browser_events', 'run_events']),
+    pluginActions: inferredFeature(features, endpoints, [BROWSER_CAPABILITY_FLAGS.pluginActions, 'pluginActions'], ['browser_actions', 'plugin_actions']),
+    approvalEvents: inferredFeature(features, endpoints, [BROWSER_CAPABILITY_FLAGS.approvalEvents, 'approvalEvents'], ['approval_events']),
+    // v0.1.9 is support-only. Never enable browser control in the extension
+    // from capability discovery alone; action policy/approval logs come later.
+    browserControl: false,
     dashboardWs: inferredFeature(features, endpoints, ['dashboard_ws', 'dashboardWebSocket'], ['dashboard_ws', 'ws_ticket']),
     endpoints,
     raw: payload,
@@ -160,6 +196,9 @@ export function capabilityStatusRows(caps = DEFAULT_GATEWAY_CAPABILITIES, { brow
     { key: 'browserPairing', label: 'Browser pairing', ...statusFor(caps.browserPairing, WARNING_CAPABILITY_COPY.browserPairing, 'Automatic pairing route available.') },
     { key: 'runs', label: 'Runs API', ...statusFor(caps.runs, 'Runs API unavailable — chat/session routes will be used.') },
     { key: 'runSteer', label: 'Run steering', ...statusFor(caps.runSteer, 'Run steering unavailable — queued drafts can still send after the current turn.', 'Active-run steering route available.') },
+    { key: 'browserContextProvider', label: 'Browser Context Protocol', ...statusFor(caps.browserContextProvider !== false, 'Browser context protocol unavailable.', 'Extension can emit hermes.browser.context.v1 payloads.') },
+    { key: 'browserContextUpload', label: 'Browser context upload', ...statusFor(caps.browserContextUpload, 'Side-channel browser context route missing — prompt-embedded fallback stays active.', 'Side-channel browser context upload route available.') },
+    { key: 'browserCompanionPlugin', label: 'Browser Companion Plugin', ...statusFor(caps.browserCompanionPlugin, 'Optional companion plugin missing — extension remains fully usable with prompt-embedded context.', 'Companion plugin capability detected.') },
     { key: 'sessionContext', label: 'Context status', ...statusFor(caps.sessionContext, 'Native session context status unavailable — Browser uses local/runtime estimates.', 'Native session context inspection available.') },
     { key: 'sessionCompress', label: 'Context compaction', ...statusFor(caps.sessionCompress, 'Native session compaction unavailable — Browser will not show an active compact action.', 'Native session compaction available.') },
   ];

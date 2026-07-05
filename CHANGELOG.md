@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.1.9 — 2026-07-05
+
+### Browser Context Protocol
+- Extracted Browser Context Protocol v1 into `extension/lib/browser-context-protocol.mjs` with a stable `hermes.browser.context.v1` id, deterministic payload hash, chat-only prompt mode, and literal untrusted-data receipt rendering.
+- Kept legacy `buildHermesPrompt`, `browserContextPayloadHash`, and `buildContextReceipt` wrappers compatibility-preserving for existing chat/session flows.
+
+### Public support + compatibility
+- Bumped source/package/manifests to v0.1.9.
+- Added Copy Diagnostics in Settings so users can copy a redacted support report with browser family, extension/build version, gateway origin, connection state, capability flags, selected model/provider, context scope, extractor mode, and last visible error.
+- Added a README compatibility matrix for Chrome/Edge/Chromium, Chromium forks, Firefox/Safari preview status, local/remote Gateway modes, Browser Context Protocol, companion plugin prototype status, and explicitly deferred browser-control/Runs/debugger/nativeMessaging surfaces.
+- Extended compatibility rows with Browser Context Protocol, browser context upload fallback, and optional Browser Companion Plugin status.
+- Added browser family/origin diagnostics for future Firefox/Safari and cross-browser support triage.
+
+### Runtime/tool event naming
+- Added stable Browser runtime/tool event names in `extension/lib/runtime-events.mjs` and normalized current Hermes tool-progress aliases into the Tool Activity Strip while keeping browser-control events out of the v0.1.9 surface.
+
+### Private companion prototype
+- Added `companion-plugin/` as a fail-soft private skeleton with context store, protocol helpers, tools, hooks, policy, install notes, and skill docs.
+- The skeleton does not register API-server routes, does not assume side-channel availability, and does not include browser-control/page-action channels.
+
+### Tests
+- Added focused tests for Browser Context Protocol, runtime event naming, support diagnostics redaction, v0.1.9 capability rows, and the private companion skeleton.
+
 ## v0.1.8 — 2026-07-04
 
 ### Active-run chat steering

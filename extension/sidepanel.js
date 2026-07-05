@@ -79,6 +79,8 @@ import {
   connectionSecuritySummary,
   normalizeGatewayCapabilities,
 } from './lib/capabilities.mjs';
+import { normalizeBrowserRuntimeEvent } from './lib/runtime-events.mjs';
+import { buildSupportDiagnostics } from './lib/support-diagnostics.mjs';
 import {
   DEFAULT_AGENT_PORTS,
   activeAgents,
@@ -225,6 +227,8 @@ const els = {
   profileStatus: $('#profileStatus'),
   compatibilityList: $('#compatibilityList'),
   compatibilityStatus: $('#compatibilityStatus'),
+  copyDiagnosticsButton: $('#copyDiagnosticsButton'),
+  diagnosticsCopyStatus: $('#diagnosticsCopyStatus'),
   connectionSecuritySummary: $('#connectionSecuritySummary'),
   clearTokenButton: $('#clearTokenButton'),
   agentList: $('#agentList'),
@@ -258,6 +262,7 @@ let selectedModelProvider = '';
 let modelSelectionVersion = 0;
 let pendingModelRuntimeAck = null;
 let lastRemoteDiagnostic = null;
+let lastVisibleStatus = null;
 const openSessionGroups = new Set();
 const closedSessionGroups = new Set();
 let sending = false;
@@ -392,6 +397,7 @@ function markConnectionProbe(status, detail = '') {
 }
 
 function setStatus(kind, title, detail) {
+  lastVisibleStatus = { kind: kind || '', title: title || '', detail: detail || '', ts: Date.now() };
   els.statusDot.className = `status-dot ${kind || ''}`.trim();
   const safeTitle = title || 'Hermes Browser Extension';
   const safeDetail = detail || '';
@@ -529,6 +535,49 @@ function renderConnectionSecurity() {
     els.connectionSecuritySummary.appendChild(row);
   }
   if (els.clearTokenButton) els.clearTokenButton.disabled = !summary.hasToken;
+}
+
+async function copySupportDiagnostics() {
+  if (!els.copyDiagnosticsButton) return;
+  const originalText = els.copyDiagnosticsButton.textContent || 'Copy Diagnostics';
+  els.copyDiagnosticsButton.disabled = true;
+  els.copyDiagnosticsButton.textContent = 'Copying...';
+  if (els.diagnosticsCopyStatus) els.diagnosticsCopyStatus.textContent = 'Building redacted diagnostics...';
+  try {
+    const buildInfo = await loadExtensionBuildInfo().catch(() => ({}));
+    const state = currentConnectionState();
+    const diagnostics = buildSupportDiagnostics({
+      extensionVersion: CURRENT_EXTENSION_VERSION,
+      buildInfo,
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      settings,
+      connection: {
+        state: state.state,
+        detail: connectionProbeDetail || currentConnectionTroubleshooting(state),
+      },
+      health: {
+        ok: state.connected,
+        version: gatewayCapabilities.raw?.version || gatewayCapabilities.raw?.hermes_version || '',
+        build: gatewayCapabilities.raw?.build || gatewayCapabilities.raw?.commit || '',
+      },
+      capabilities: gatewayCapabilities,
+      selectedModel: currentSelectedModel() || {},
+      contextScope,
+      lastError: lastVisibleStatus,
+      currentContext,
+      extractorMode: currentContext?.pageContext?.source || 'extension-dom',
+    });
+    await navigator.clipboard.writeText(diagnostics.markdown);
+    if (els.diagnosticsCopyStatus) els.diagnosticsCopyStatus.textContent = 'Copied redacted diagnostics. Paste them into the GitHub issue or support thread.';
+    setStatus('ok', 'Diagnostics copied', 'Redacted support diagnostics are on your clipboard.');
+  } catch (error) {
+    if (els.diagnosticsCopyStatus) els.diagnosticsCopyStatus.textContent = 'Could not copy diagnostics. Check browser clipboard permissions.';
+    setStatus('warn', 'Diagnostics copy failed', error?.message || String(error));
+  } finally {
+    els.copyDiagnosticsButton.disabled = false;
+    els.copyDiagnosticsButton.textContent = originalText;
+  }
 }
 
 function ensureSidepanelInstanceId() {
@@ -4469,9 +4518,9 @@ async function readSseResponse(response, onDelta, onTool, { signal, onRun, onSte
         onDelta(finalText);
       }
     } else if (event.type?.startsWith('tool.') && onTool) {
-      onTool(data);
+      onTool(normalizeBrowserRuntimeEvent({ type: event.type, data }));
     } else if (event.type === 'hermes.tool.progress' && onTool) {
-      onTool(data);
+      onTool(normalizeBrowserRuntimeEvent({ type: event.type, data }));
     } else if (event.type === 'error') {
       throw new Error(data.message || event.data || 'Hermes stream error');
     }
@@ -4966,7 +5015,7 @@ async function askHermes(userText, turnAttachments = [...attachments]) {
           liveText = partial || '';
           streamView.updateText(liveText || THINKING_PLACEHOLDER);
         },
-        (tool) => streamView.updateTool(normalizeToolActivity(tool)),
+        (tool) => streamView.updateTool(normalizeToolActivity(tool.data || tool)),
         {
           signal: activeAbortController.signal,
           attachments: preparedAttachments,
@@ -5398,6 +5447,9 @@ function bindEvents() {
     compactCurrentSessionContext().catch((error) => setStatus('warn', 'Context compaction failed', error?.message || String(error)));
   });
   els.testConnectionButton.addEventListener('click', testConnection);
+  els.copyDiagnosticsButton?.addEventListener('click', () => {
+    copySupportDiagnostics().catch((error) => setStatus('warn', 'Diagnostics copy failed', error?.message || String(error)));
+  });
   els.clearTokenButton?.addEventListener('click', () => {
     clearStoredToken().catch((error) => setStatus('warn', 'Could not clear token', error?.message || String(error)));
   });

@@ -2544,7 +2544,8 @@ textarea:focus, input:focus, select:focus { border-color: var(--hermes-accent); 
   .settings-toggle-grid-three { grid-template-columns: 1fr; }
 }
 .compatibility-panel,
-.connection-security {
+.connection-security,
+.support-diagnostics {
   display: grid;
   gap: 9px;
   padding: 10px;
@@ -2552,7 +2553,8 @@ textarea:focus, input:focus, select:focus { border-color: var(--hermes-accent); 
   background: rgba(var(--hermes-ink-rgb),0.035);
 }
 .compatibility-panel h4,
-.connection-security h4 {
+.connection-security h4,
+.support-diagnostics h4 {
   margin: 0;
   color: var(--hermes-ink);
   font-size: 11px;
@@ -2592,6 +2594,12 @@ textarea:focus, input:focus, select:focus { border-color: var(--hermes-accent); 
 }
 .connection-security-summary span { color: var(--hermes-muted); }
 .connection-security-summary strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.support-diagnostics button {
+  justify-self: start;
+  min-height: 31px;
+  padding: 7px 10px 6px;
+  font-size: 10px;
+}
 .context-receipt {
   margin-top: 9px;
   padding-top: 8px;

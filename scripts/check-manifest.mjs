@@ -27,6 +27,8 @@ const requiredFiles = [
   'voice-dictation.html',
   'voice-dictation.js',
   'lib/browser-context-protocol.mjs',
+  'lib/runtime-events.mjs',
+  'lib/support-diagnostics.mjs',
   'lib/common.mjs',
   'assets/fonts/Sigurd-Variable.woff2',
   'assets/fonts/CourierPrime-Regular.woff2',

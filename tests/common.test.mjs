@@ -842,7 +842,8 @@ test('tool activity strip is wired as runtime UI instead of raw tool markdown', 
   assert.match(source, /function renderToolActivity/);
   assert.match(source, /function setToolActivity/);
   assert.match(source, /updateTool\(tool/);
-  assert.match(source, /streamView\.updateTool\(normalizeToolActivity\(tool\)\)/);
+  assert.match(source, /normalizeBrowserRuntimeEvent/);
+  assert.match(source, /streamView\.updateTool\(normalizeToolActivity\(tool\.data \|\| tool\)\)/);
   assert.doesNotMatch(source, /\\n\\n\[tool\]/);
   assert.match(css, /\.tool-activity\b/);
   for (const category of ['file', 'edit', 'terminal', 'browser', 'web', 'media', 'meta']) {

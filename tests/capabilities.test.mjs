@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
+  BROWSER_CAPABILITY_FLAGS,
   buildContextReceipt,
   capabilityStatusRows,
   connectionSecuritySummary,
@@ -69,6 +70,48 @@ test('normalizeGatewayCapabilities maps the Hermes /v1/capabilities API contract
   assert.match(caps.warnings.join('\n'), /audio transcription/i);
 });
 
+test('normalizeGatewayCapabilities detects browser protocol and companion plugin capability flags', () => {
+  const caps = normalizeGatewayCapabilities({
+    object: 'hermes.api_server.capabilities',
+    platform: 'hermes-agent',
+    auth: { type: 'bearer', required: true },
+    features: {
+      browser_context_provider: true,
+      browser_context_upload: true,
+      browser_context_status: true,
+      browser_companion_plugin: true,
+      run_events_sse: true,
+      plugin_actions: false,
+      approval_events: false,
+      browser_control: true,
+    },
+    endpoints: {
+      browser_context_update: { method: 'POST', path: '/api/browser/context' },
+      browser_context_status: { method: 'GET', path: '/api/browser/context/status' },
+      browser_context_delete: { method: 'DELETE', path: '/api/browser/context' },
+      browser_events: { method: 'GET', path: '/api/browser/events' },
+    },
+  }, { healthOk: true, hasApiKey: true });
+
+  assert.deepEqual(BROWSER_CAPABILITY_FLAGS, {
+    browserContextProvider: 'browser_context_provider',
+    browserContextUpload: 'browser_context_upload',
+    browserContextStatus: 'browser_context_status',
+    browserCompanionPlugin: 'browser_companion_plugin',
+    pluginActions: 'plugin_actions',
+    approvalEvents: 'approval_events',
+    browserControl: 'browser_control',
+  });
+  assert.equal(caps.browserContextProvider, true);
+  assert.equal(caps.browserContextUpload, true);
+  assert.equal(caps.browserContextStatus, true);
+  assert.equal(caps.browserCompanionPlugin, true);
+  assert.equal(caps.browserEvents, true);
+  assert.equal(caps.pluginActions, false);
+  assert.equal(caps.approvalEvents, false);
+  assert.equal(caps.browserControl, false, 'v0.1.9 must not enable browser control even if an upstream runtime advertises it');
+});
+
 test('normalizeGatewayCapabilities degrades missing capability routes into a legacy object', () => {
   const caps = normalizeGatewayCapabilities(null, {
     healthOk: true,
@@ -111,6 +154,10 @@ test('capabilityStatusRows turn capabilities into compatibility-panel statuses',
   assert.match(byKey.runSteer.detail, /queued drafts/i);
   assert.equal(byKey.sessionContext.status, 'warn');
   assert.equal(byKey.sessionCompress.status, 'warn');
+  assert.equal(byKey.browserContextProvider.status, 'ok');
+  assert.equal(byKey.browserCompanionPlugin.status, 'warn');
+  assert.match(byKey.browserCompanionPlugin.detail, /optional/i);
+  assert.equal(byKey.browserControl, undefined, 'v0.1.9 compatibility panel must not advertise browser control');
 });
 
 test('connectionSecuritySummary masks token state and classifies transport', () => {
