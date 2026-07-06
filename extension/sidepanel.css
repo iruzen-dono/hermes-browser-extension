@@ -3073,3 +3073,103 @@ html[data-hermes-text-size] .message-content h6 { font-size: calc(13px * var(--h
   justify-self: stretch;
   margin-top: 6px;
 }
+
+/* --- Loading skeleton (v0.1.10 polish) --------------------------------- */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.18; transform: scaleX(1); }
+  50% { opacity: 0.4; transform: scaleX(1.02); }
+}
+@keyframes skeletonShimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+.skeleton {
+  position: relative;
+  display: block;
+  border-radius: 4px;
+  background: rgba(var(--hermes-fg-rgb), 0.08);
+  overflow: hidden;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(var(--hermes-fg-rgb), 0.12), transparent);
+  animation: skeletonShimmer 1.8s ease-in-out infinite;
+}
+.skeleton-text {
+  height: 12px;
+  margin-bottom: 6px;
+  animation: skeletonPulse 1.6s ease-in-out infinite;
+}
+.skeleton-text:last-child { width: 62%; }
+.skeleton-title {
+  height: 18px;
+  width: 54%;
+  margin-bottom: 10px;
+  animation: skeletonPulse 1.6s ease-in-out infinite;
+}
+.skeleton-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  animation: skeletonPulse 1.8s ease-in-out infinite;
+}
+.skeleton-card {
+  padding: 12px;
+  border: 1px solid rgba(var(--hermes-fg-rgb), 0.08);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+  .skeleton { animation: none; }
+}
+
+/* --- Context bar glow on threshold (v0.1.10 polish) -------------------- */
+.context-track span {
+  transition: width 240ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 300ms ease;
+}
+.context-track[data-warn="true"] span {
+  box-shadow: 0 0 8px rgba(255, 180, 40, 0.5), inset 0 0 0 1px rgba(var(--hermes-ink-rgb), 0.22);
+}
+.context-track[data-critical="true"] span {
+  box-shadow: 0 0 12px rgba(255, 80, 60, 0.55), inset 0 0 0 1px rgba(var(--hermes-ink-rgb), 0.22);
+}
+
+/* --- Tool activity fade-in (v0.1.10 polish) --------------------------- */
+.message-tool-activity {
+  animation: toolFadeIn 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes toolFadeIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.tool-activity:empty { display: none; }
+.tool-activity-preview {
+  transition: opacity 200ms ease;
+}
+
+/* --- Command menu stagger (v0.1.10 polish) ---------------------------- */
+@keyframes commandSlideIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.composer-command {
+  animation: commandSlideIn 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.composer-command:nth-child(1) { animation-delay: 0ms; }
+.composer-command:nth-child(2) { animation-delay: 20ms; }
+.composer-command:nth-child(3) { animation-delay: 40ms; }
+.composer-command:nth-child(4) { animation-delay: 60ms; }
+.composer-command:nth-child(5) { animation-delay: 80ms; }
+.composer-command:nth-child(6) { animation-delay: 100ms; }
+.composer-command:nth-child(7) { animation-delay: 120ms; }
+.composer-command:nth-child(8) { animation-delay: 140ms; }
+.composer-command:nth-child(9) { animation-delay: 160ms; }
+.composer-command:nth-child(10) { animation-delay: 180ms; }
+@media (prefers-reduced-motion: reduce) {
+  .message-tool-activity,
+  .composer-command { animation: none; }
+}

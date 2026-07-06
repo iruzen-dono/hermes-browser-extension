@@ -122,6 +122,27 @@ export const BUILTIN_COMMANDS = Object.freeze([
     promptHint: 'Find … on this page.',
     prompt: (ctx) => `Search the page "${ctx.activeTab?.title || 'active tab'}" for the user's topic and report everything relevant. Quote specific sections. If the topic does not appear on the page, say so clearly and suggest related topics that do appear.`,
   },
+  {
+    name: 'meta',
+    aliases: ['metadata', 'head'],
+    description: 'Extract all structured metadata from this page (OG, JSON-LD, SEO).',
+    category: 'Page',
+    icon: '🏷',
+    requiresInput: false,
+    promptHint: 'Extract meta tags, OG, Twitter Cards, JSON-LD, hreflang & SEO data.',
+    prompt: (ctx) => `Extract and organise every piece of structured metadata from the page "${ctx.activeTab?.title || 'active tab'}".
+
+Return a clear report covering:
+
+1. **Open Graph** — og:title, og:description, og:image, og:url, og:type, og:site_name, og:locale
+2. **Twitter Cards** — twitter:card, twitter:site, twitter:title, twitter:description, twitter:image
+3. **JSON-LD** — any structured data blocks found (type, main fields, key properties)
+4. **Standard SEO** — <title>, <meta name="description">, <meta name="keywords">, <link rel="canonical">
+5. **Technical** — hreflang tags, <link rel="alternate">, favicon/icon links, robots meta, viewport
+6. **Missing** — note any important meta tags that are absent (og:image, description, canonical, etc.)
+
+Keep the answer structured and scannable. If the page has no metadata at all, say that clearly.`,
+  },
 ]);
 
 function normalizeCommandName(name = '') {
