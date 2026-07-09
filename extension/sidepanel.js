@@ -39,6 +39,7 @@ import {
   modelDisplayName,
   modelRefreshControlState,
   modelRuntimeStatus,
+  modelRuntimeAckState,
   normalizeGitCommit,
   normalizeHermesModels,
   normalizeHermesProfiles,
@@ -49,6 +50,7 @@ import {
   normalizeGatewayMode,
   normalizeGatewayUrl,
   normalizeBrowserModelBinding,
+  normalizeRuntimeModelPayload,
   normalizeSessionStartupMode,
   normalizeTextSize,
   normalizeToolActivity,
@@ -57,7 +59,9 @@ import {
   queuedMessageControlState,
   reasoningEffortShortLabel,
   renderMarkdown,
+  runtimeValueMatches,
   safeTab,
+  shouldRequireModelLock,
   shouldStopSessionPaging,
   shouldFallbackToWebSpeechForTranscription,
   shouldAutoOpenSessionGroup,
@@ -2799,6 +2803,8 @@ function renderContextWindow(userText = els.input?.value || '') {
 }
 
 function applySelectedModel(selectedId, { persist = true, keepOpen = false } = {}) {
+  const previousId = settings.model;
+  const previousBinding = currentEffectiveModelBinding();
   const nextId = selectedId || DEFAULT_SETTINGS.model;
   const selected = availableModels.find((model) => model.id === nextId);
   if (selected?.source === 'external') {
@@ -2843,12 +2849,104 @@ function applySelectedModel(selectedId, { persist = true, keepOpen = false } = {
       providerLabel: modelProviderLabel(selected),
     };
     const status = modelRuntimeStatus(selected);
-    const detail = `${modelProviderLabel(selected)} · ${modelDisplayName(selected)} — requested; Hermes will confirm the effective runtime model on the next turn.`;
-    if (!isModelRuntimeSelectable(selected)) {
-      setStatus('warn', 'Observed model requested', `${detail} ${status.detail}`);
-    } else {
-      setStatus('warn', 'Hermes model requested', detail);
+    const requestedDetail = `${modelProviderLabel(selected)} · ${modelDisplayName(selected)}`;
+    void syncSessionModelLock(selected, {
+      previousId,
+      previousBinding,
+      requestedDetail,
+      statusDetail: status.detail,
+    });
+  }
+}
+
+async function requestSessionModelLock(selected = currentSelectedModel()) {
+  if (!settings.sessionId) throw new Error('No active Hermes session for model lock.');
+  const response = await apiFetch(`/api/sessions/${encodeSessionId(settings.sessionId)}/model`, {
+    method: 'POST',
+    body: JSON.stringify({
+      client_runtime_version: modelSelectionVersion,
+      provider: selected?.provider || currentModelProviderSlug() || '',
+      model: selected?.rawModelId || selected?.model || selected?.id || currentModelRequestId(),
+      model_options: currentModelOptionsPayload(),
+      require_model_lock: true,
+    }),
+  });
+  const payload = await readJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(payload?.error?.message || payload?.error || `Hermes model lock failed (${response.status})`);
+  }
+  return payload;
+}
+
+async function syncSessionModelLock(selected, { previousId = '', previousBinding = null, requestedDetail = '', statusDetail = '' } = {}) {
+  const supportsLock = Boolean(gatewayCapabilities?.sessionModelLock || gatewayCapabilities?.endpoints?.session_model_lock);
+  if (!supportsLock || !settings.sessionId) {
+    setStatus(
+      'warn',
+      'Hermes model requested',
+      `${requestedDetail || modelDisplayName(selected) || settings.model} — requested; gateway will confirm on next turn.${statusDetail ? ` ${statusDetail}` : ''}`,
+    );
+    return { state: 'pending', payload: null };
+  }
+  setStatus('warn', 'Model lock pending', `${requestedDetail || modelDisplayName(selected) || settings.model} — waiting for Hermes acknowledgement.`);
+  try {
+    const payload = await requestSessionModelLock(selected);
+    const runtime = payload?.runtime || {};
+    const ack = modelRuntimeAckState({
+      requested: {
+        provider: selected?.provider || '',
+        model: selected?.rawModelId || selected?.model || selected?.id || '',
+      },
+      runtime,
+    });
+    if (ack.state === 'confirmed' || String(runtime.model_lock || '').toLowerCase() === 'accepted') {
+      setStatus('ok', 'Hermes model lock accepted', ack.detail || requestedDetail || 'Backend accepted the session model lock.');
+      if (runtime.provider || runtime.model) applyPendingModelRuntimeAck(runtime);
+      return { state: 'confirmed', payload };
     }
+    setStatus('warn', 'Model lock pending', ack.detail || 'Gateway accepted the lock request without full runtime confirmation.');
+    return { state: 'pending', payload };
+  } catch (error) {
+    if (previousId) {
+      const rollbackScope = updateBrowserModelScope({
+        selectedModel: previousBinding || { modelId: previousId, rawModelId: previousId, contextTokens: 0 },
+        sessionId: settings.sessionId,
+        sessionModelBindings: settings.sessionModelBindings || {},
+      });
+      settings = {
+        ...settings,
+        model: previousId,
+        modelContextTokens: previousBinding?.contextTokens || settings.modelContextTokens || 0,
+        extensionPreferredModel: rollbackScope.extensionPreferredModel,
+        sessionModelBindings: rollbackScope.sessionModelBindings,
+      };
+      chrome.storage.local.set({ hermesBrowserSettings: settings });
+      renderModelOptions(availableModels);
+    }
+    pendingModelRuntimeAck = null;
+    setStatus('error', 'Model lock failed', error?.message || String(error));
+    return { state: 'failed', error };
+  }
+}
+
+async function ensureActiveSessionModelLockOrThrow() {
+  const selected = currentSelectedModel();
+  const needsLock = shouldRequireModelLock({
+    provider: currentModelProviderSlug(),
+    model: currentModelRequestId(),
+    defaultModel: DEFAULT_SETTINGS.model,
+  });
+  if (!needsLock) return true;
+  const supportsLock = Boolean(gatewayCapabilities?.sessionModelLock || gatewayCapabilities?.endpoints?.session_model_lock);
+  if (!supportsLock) return true;
+  if (!settings.sessionId) return true;
+  try {
+    setStatus('warn', 'Model lock pending', 'Hermes has not acknowledged this session/model pair yet. Retrying lock before sending.');
+    await requestSessionModelLock(selected);
+    return true;
+  } catch (error) {
+    setStatus('error', 'Model lock failed', `${error?.message || error}. Not sending because Hermes might fall back to the global model.`);
+    throw error;
   }
 }
 
@@ -4856,26 +4954,20 @@ function currentModelProviderSlug() {
   return selected?.provider || binding?.provider || '';
 }
 
-function runtimeValueMatches(requested = '', effective = '') {
-  const req = String(requested || '').trim().toLowerCase();
-  const got = String(effective || '').trim().toLowerCase();
-  if (!req || !got) return true;
-  return req === got || req.endsWith(`/${got}`) || got.endsWith(`/${req}`) || req.endsWith(`:${got}`) || got.endsWith(`:${req}`);
-}
-
 function applyPendingModelRuntimeAck(runtime = {}) {
   if (!pendingModelRuntimeAck || !runtime || typeof runtime !== 'object') return;
-  const effectiveModel = runtime.model || runtime.model_id || runtime.modelId || runtime.effective_model || '';
-  const effectiveProvider = runtime.provider || runtime.provider_id || runtime.providerId || runtime.effective_provider || '';
-  if (!effectiveModel && !effectiveProvider) return;
-  const modelOk = runtimeValueMatches(pendingModelRuntimeAck.model, effectiveModel);
-  const providerOk = runtimeValueMatches(pendingModelRuntimeAck.provider, effectiveProvider);
-  const requestedLabel = [pendingModelRuntimeAck.providerLabel, pendingModelRuntimeAck.modelLabel].filter(Boolean).join(' · ');
-  const runtimeLabel = [effectiveProvider, effectiveModel].filter(Boolean).join(' · ');
-  if (modelOk && providerOk) {
-    setStatus('ok', 'Hermes model confirmed', runtimeLabel || requestedLabel || 'Runtime metadata matched the requested model.');
+  const ack = modelRuntimeAckState({
+    requested: {
+      provider: pendingModelRuntimeAck.provider,
+      model: pendingModelRuntimeAck.model,
+    },
+    runtime,
+  });
+  if (ack.state === 'pending') return;
+  if (ack.state === 'confirmed') {
+    setStatus('ok', 'Hermes model confirmed', ack.detail || 'Runtime metadata matched the requested model.');
   } else {
-    setStatus('warn', 'Model mismatch', `Requested ${requestedLabel || pendingModelRuntimeAck.model}; runtime used ${runtimeLabel || 'unknown model'}.`);
+    setStatus('warn', 'Model mismatch', ack.detail);
   }
   pendingModelRuntimeAck = null;
 }
@@ -5046,13 +5138,18 @@ async function streamSessionChat(prompt, onDelta, onTool, { signal, attachments:
     method: 'POST',
     signal,
     body: JSON.stringify({
-      client_runtime_version: modelSelectionVersion,
-      model: currentModelRequestId(),
-      provider: currentModelProviderSlug() || undefined,
-      model_options: currentModelOptionsPayload(),
-      message: outboundContent(prompt, turnAttachments),
-      system_message: HERMES_BROWSER_SYSTEM_PROMPT,
-    }),
+          client_runtime_version: modelSelectionVersion,
+          model: currentModelRequestId(),
+          provider: currentModelProviderSlug() || undefined,
+          model_options: currentModelOptionsPayload(),
+          require_model_lock: shouldRequireModelLock({
+            provider: currentModelProviderSlug(),
+            model: currentModelRequestId(),
+            defaultModel: DEFAULT_SETTINGS.model,
+          }),
+          message: outboundContent(prompt, turnAttachments),
+          system_message: HERMES_BROWSER_SYSTEM_PROMPT,
+        }),
   });
 
   if (!response.ok || !response.body) {
@@ -5206,12 +5303,17 @@ async function fallbackSessionChat(prompt, turnAttachments = attachments, { onRu
   const response = await apiFetch(`/api/sessions/${encodeSessionId(settings.sessionId)}/chat`, {
     method: 'POST',
     body: JSON.stringify({
-      model: currentModelRequestId(),
-      provider: currentModelProviderSlug() || undefined,
-      model_options: currentModelOptionsPayload(),
-      message: outboundContent(prompt, turnAttachments),
-      system_message: HERMES_BROWSER_SYSTEM_PROMPT,
-    }),
+          model: currentModelRequestId(),
+          provider: currentModelProviderSlug() || undefined,
+          model_options: currentModelOptionsPayload(),
+          require_model_lock: shouldRequireModelLock({
+            provider: currentModelProviderSlug(),
+            model: currentModelRequestId(),
+            defaultModel: DEFAULT_SETTINGS.model,
+          }),
+          message: outboundContent(prompt, turnAttachments),
+          system_message: HERMES_BROWSER_SYSTEM_PROMPT,
+        }),
   });
   const payload = await readJsonResponse(response);
   if (!response.ok) throw new Error(payload?.error?.message || payload?.error || `Hermes request failed (${response.status})`);
@@ -5254,11 +5356,18 @@ async function askHermes(userText, turnAttachments = [...attachments]) {
 
   const autoTitle = autoTitleForCurrentTurn(userText);
   sending = true;
-  const selectedModel = currentSelectedModel();
-  if (selectedModel && !isModelRuntimeSelectable(selectedModel)) {
-    setStatus('warn', 'Sending observed model request', `${modelDisplayName(selectedModel)} was discovered from session history. The extension will request it, but the connected Hermes gateway may use its configured model if it does not support per-request overrides.`);
-  }
-  activeAbortController = new AbortController();
+    const selectedModel = currentSelectedModel();
+    if (selectedModel && !isModelRuntimeSelectable(selectedModel)) {
+      setStatus('warn', 'Sending observed model request', `${modelDisplayName(selectedModel)} was discovered from session history. The extension will request it, but the connected Hermes gateway may use its configured model if it does not support per-request overrides.`);
+    }
+    try {
+      await ensureActiveSessionModelLockOrThrow();
+    } catch {
+      sending = false;
+      updateComposerBusyState();
+      return false;
+    }
+    activeAbortController = new AbortController();
   activeRunId = '';
   updateComposerBusyState();
   els.input.value = '';

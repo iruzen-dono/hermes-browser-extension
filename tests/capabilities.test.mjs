@@ -26,8 +26,9 @@ test('normalizeGatewayCapabilities maps the Hermes /v1/capabilities API contract
       session_compress: true,
       session_resources: true,
       session_chat: true,
-      session_chat_streaming: true,
-      skills_api: true,
+            session_chat_streaming: true,
+            session_model_lock: true,
+            skills_api: true,
       profiles_api: false,
       audio_api: false,
       browser_extension_pairing: false,
@@ -45,18 +46,20 @@ test('normalizeGatewayCapabilities maps the Hermes /v1/capabilities API contract
       session_context: { method: 'GET', path: '/api/sessions/{session_id}/context' },
       session_compress: { method: 'POST', path: '/api/sessions/{session_id}/compress' },
       session_chat: { method: 'POST', path: '/api/sessions/{session_id}/chat' },
-      session_chat_stream: { method: 'POST', path: '/api/sessions/{session_id}/chat/stream' },
-    },
-  }, { healthOk: true, hasApiKey: true });
+            session_chat_stream: { method: 'POST', path: '/api/sessions/{session_id}/chat/stream' },
+            session_model_lock: { method: 'POST', path: '/api/sessions/{session_id}/model' },
+          },
+        }, { healthOk: true, hasApiKey: true });
 
-  assert.equal(caps.source, 'api-server');
-  assert.equal(caps.health, true);
-  assert.equal(caps.auth, true);
-  assert.equal(caps.models, true);
-  assert.equal(caps.sessions, true);
-  assert.equal(caps.sessionChat, true);
-  assert.equal(caps.sessionChatStreaming, true);
-  assert.equal(caps.skills, true);
+        assert.equal(caps.source, 'api-server');
+        assert.equal(caps.health, true);
+        assert.equal(caps.auth, true);
+        assert.equal(caps.models, true);
+        assert.equal(caps.sessions, true);
+        assert.equal(caps.sessionChat, true);
+        assert.equal(caps.sessionChatStreaming, true);
+        assert.equal(caps.sessionModelLock, true);
+        assert.equal(caps.skills, true);
   assert.equal(caps.runs, true);
   assert.equal(caps.runEvents, true);
   assert.equal(caps.runStop, true);
@@ -276,4 +279,20 @@ test('sidepanel UI has compatibility, token hygiene, and What Hermes saw surface
   assert.match(js, /imageUpload/);
   assert.match(voiceJs, /SpeechRecognition|webkitSpeechRecognition/);
   assert.match(voiceJs, /Browser speech fallback/);
+});
+
+test('session_model_lock is recognized from feature flag or endpoint only', () => {
+  const featureCaps = normalizeGatewayCapabilities({
+    features: { session_model_lock: true },
+    endpoints: {},
+  }, { healthOk: true, hasApiKey: true });
+  assert.equal(featureCaps.sessionModelLock, true);
+
+  const endpointCaps = normalizeGatewayCapabilities({
+    features: {},
+    endpoints: {
+      session_model_lock: { method: 'POST', path: '/api/sessions/{session_id}/model' },
+    },
+  }, { healthOk: true, hasApiKey: true });
+  assert.equal(endpointCaps.sessionModelLock, true);
 });

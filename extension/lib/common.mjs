@@ -805,6 +805,50 @@ export function updateBrowserModelScope({ selectedModel = null, sessionId = '', 
   };
 }
 
+export function runtimeValueMatches(requested = '', effective = '') {
+  const req = String(requested || '').trim().toLowerCase();
+  const got = String(effective || '').trim().toLowerCase();
+  if (!req || !got) return true;
+  return req === got || req.endsWith(`/${got}`) || got.endsWith(`/${req}`) || req.endsWith(`:${got}`) || got.endsWith(`:${req}`);
+}
+
+export function normalizeRuntimeModelPayload(payload = {}) {
+  const runtime = payload?.runtime && typeof payload.runtime === 'object' ? payload.runtime : payload;
+  return {
+    provider: String(runtime.provider || runtime.provider_id || runtime.providerId || runtime.effective_provider || '').trim(),
+    model: String(runtime.model || runtime.model_id || runtime.modelId || runtime.effective_model || '').trim(),
+    requestedProvider: String(runtime.requested?.provider || runtime.requested_provider || '').trim(),
+    requestedModel: String(runtime.requested?.model || runtime.requested_model || '').trim(),
+    modelLock: String(runtime.model_lock || runtime.modelLock || '').trim(),
+    routeSource: String(runtime.route_source || runtime.routeSource || '').trim(),
+  };
+}
+
+export function modelRuntimeAckState({ requested = {}, runtime = {} } = {}) {
+  const effective = normalizeRuntimeModelPayload(runtime);
+  const requestedProvider = String(requested.provider || effective.requestedProvider || '').trim();
+  const requestedModel = String(requested.model || effective.requestedModel || '').trim();
+  const modelOk = !requestedModel || !effective.model || runtimeValueMatches(requestedModel, effective.model);
+  const providerOk = !requestedProvider || !effective.provider || runtimeValueMatches(requestedProvider, effective.provider);
+  if (!effective.model && !effective.provider) {
+    return { state: 'pending', detail: 'Waiting for Hermes runtime metadata.' };
+  }
+  if (modelOk && providerOk) {
+    return {
+      state: 'confirmed',
+      detail: [effective.provider, effective.model].filter(Boolean).join(' · '),
+    };
+  }
+  return {
+    state: 'mismatch',
+    detail: `Requested ${[requestedProvider, requestedModel].filter(Boolean).join(' · ')} but runtime used ${[effective.provider, effective.model].filter(Boolean).join(' · ') || 'unknown runtime'}.`,
+  };
+}
+
+export function shouldRequireModelLock({ provider = '', model = '', defaultModel = DEFAULT_SETTINGS.model } = {}) {
+  return Boolean(String(provider || '').trim() || (String(model || '').trim() && String(model || '').trim() !== String(defaultModel || DEFAULT_SETTINGS.model).trim()));
+}
+
 const TITLE_SMALL_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'vs', 'with']);
 const TITLE_ACRONYMS = new Map([
   ['api', 'API'],

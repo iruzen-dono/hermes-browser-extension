@@ -42,11 +42,13 @@ import {
   microphonePermissionHelp,
   modelDisplayName,
   modelRuntimeStatus,
+  modelRuntimeAckState,
   normalizeHermesModels,
   normalizeHermesProfiles,
   normalizeHermesSessions,
   normalizeHermesSkills,
   normalizeBrowserModelBinding,
+  normalizeRuntimeModelPayload,
   normalizeFastMode,
   normalizeSessionStartupMode,
   normalizeTextSize,
@@ -55,6 +57,7 @@ import {
   queuedMessageControlState,
   redactSensitiveText,
   renderMarkdown,
+  runtimeValueMatches,
   reasoningEffortShortLabel,
   skillCommandForName,
   skillSuggestionsForInput,
@@ -64,6 +67,7 @@ import {
   shouldAutoOpenSessionGroup,
   shouldAutoFlushQueuedTurn,
   shouldCreateFreshSessionOnOpen,
+  shouldRequireModelLock,
   resolveBrowserEffectiveModel,
   summarizeTabs,
   compareVersionStrings,
@@ -568,6 +572,21 @@ test('model selection stays pending until runtime metadata confirms or warns', (
   assert.match(source, /let pendingModelRuntimeAck\s*=\s*null/);
   assert.match(source, /client_runtime_version:\s*modelSelectionVersion/);
   assert.match(source, /Hermes model confirmed|Model mismatch/);
+  assert.match(source, /\/api\/sessions\/\$\{encodeSessionId\(settings\.sessionId\)\}\/model/);
+  assert.match(source, /require_model_lock/);
+  assert.match(source, /Model lock failed|model lock failed/i);
+});
+
+test('model runtime ack helper distinguishes pending confirmed and mismatch states', () => {
+  assert.equal(modelRuntimeAckState({ requested: { provider: 'nous', model: 'x-ai/grok-4.5' }, runtime: {} }).state, 'pending');
+  assert.equal(modelRuntimeAckState({ requested: { provider: 'nous', model: 'x-ai/grok-4.5' }, runtime: { provider: 'nous', model: 'x-ai/grok-4.5' } }).state, 'confirmed');
+  const mismatch = modelRuntimeAckState({ requested: { provider: 'nous', model: 'x-ai/grok-4.5' }, runtime: { provider: 'openai-codex', model: 'gpt-5.5' } });
+  assert.equal(mismatch.state, 'mismatch');
+  assert.match(mismatch.detail, /gpt-5\.5/);
+  assert.equal(shouldRequireModelLock({ provider: 'nous', model: 'x-ai/grok-4.5' }), true);
+  assert.equal(shouldRequireModelLock({ provider: '', model: DEFAULT_SETTINGS.model, defaultModel: DEFAULT_SETTINGS.model }), false);
+  assert.equal(normalizeRuntimeModelPayload({ runtime: { provider: 'nous', model: 'x-ai/grok-4.5', route_source: 'raw_request' } }).routeSource, 'raw_request');
+  assert.equal(runtimeValueMatches('x-ai/grok-4.5', 'grok-4.5'), true);
 });
 
 test('custom model source rows are discovery-only until Hermes exposes them through the runtime', () => {
