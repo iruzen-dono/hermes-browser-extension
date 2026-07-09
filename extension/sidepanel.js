@@ -4636,10 +4636,10 @@ function setPickButtonState() {
   const attachPick = document.querySelector('[data-attach="pick-element"]');
   if (attachPick) {
     attachPick.textContent = pickingActive
-      ? '☝ Picking element...'
+      ? '◈ Picking element...'
       : hasPick
-        ? '☝ Pick a different element'
-        : '☝ Pick page element';
+        ? '◈ Pick a different element'
+        : '◈ Pick page element';
     attachPick.setAttribute('aria-pressed', String(pickingActive || Boolean(hasPick)));
   }
   const attachClear = document.getElementById('clearPickAttachButton');

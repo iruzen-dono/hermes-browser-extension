@@ -562,7 +562,7 @@ export function contextChipSummary({ pageContext = null, activeTab = null, parts
   const attachedChars = attachedParts.reduce((total, part) => total + Number(part.chars || 0), 0);
   const attachedTokens = attachedParts.reduce((total, part) => total + Number(part.estimatedTokens || 0), 0);
   const adapter = pageContext.youtubeTranscript?.ok ? 'YouTube + DOM' : 'DOM';
-  const pickMarker = pageContext.pickedElement?.selector ? '☝ ' : '';
+  const pickMarker = pageContext.pickedElement?.selector ? '◈ ' : '';
 
   return {
     label: `${pickMarker}📎 ${adapter} · ${formatWholeNumber(attachedChars)} chars · ~${formatWholeNumber(attachedTokens)} tok`,
