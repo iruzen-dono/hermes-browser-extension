@@ -68,7 +68,9 @@ import {
   shouldAutoFlushQueuedTurn,
   shouldCreateFreshSessionOnOpen,
   shouldRequireModelLock,
+  resolveAcknowledgedSessionModelBinding,
   resolveBrowserEffectiveModel,
+  resolveCatalogModelIdForBinding,
   summarizeTabs,
   compareVersionStrings,
   autoSessionTitleFromText,
@@ -1251,7 +1253,7 @@ test('groupModelsForMenu groups connected Hermes models by provider and filters 
 
 test('normalizeHermesSessions and groupSessionsForMenu mirror Hermes Desktop source groups', () => {
   const sessions = normalizeHermesSessions({ data: [
-    { id: 'api_1', title: 'Reply with exactly OK.', source: 'api_server', last_active: 30, message_count: 2, model: 'qwen3.7-plus', provider: 'zenmux', input_tokens: 1200, output_tokens: 340, cache_read_tokens: 50, reasoning_tokens: 10 },
+    { id: 'api_1', title: 'Reply with exactly OK.', source: 'api_server', last_active: 30, message_count: 2, model: 'qwen3.7-plus', provider: 'zenmux', input_tokens: 1200, output_tokens: 340, cache_read_tokens: 50, reasoning_tokens: 10, last_prompt_tokens: 29_577, context_length: 372_000, threshold_tokens: 316_200, usage_percent: 7.95, compression_count: 0 },
     { id: 'hb_1', title: 'Hermes Browser Extension', source: 'hermes_browser', last_active: 40, message_count: 1 },
     { id: 'tg_1', title: 'Telegram thread', source: 'telegram', last_active: 20, message_count: 10 },
   ] });
@@ -1263,6 +1265,11 @@ test('normalizeHermesSessions and groupSessionsForMenu mirror Hermes Desktop sou
   assert.equal(sessions[1].outputTokens, 340);
   assert.equal(sessions[1].cacheReadTokens, 50);
   assert.equal(sessions[1].reasoningTokens, 10);
+  assert.equal(sessions[1].lastPromptTokens, 29_577);
+  assert.equal(sessions[1].contextLength, 372_000);
+  assert.equal(sessions[1].thresholdTokens, 316_200);
+  assert.equal(sessions[1].usagePercent, 7.95);
+  assert.equal(sessions[1].compressionCount, 0);
   const groups = groupSessionsForMenu(sessions, 'api_1');
   assert.deepEqual(groups.map((group) => group.label), ['Hermes Browser Extension', 'API', 'Telegram']);
   assert.equal(groups[1].sessions[0].selected, true);
@@ -1297,6 +1304,39 @@ test('browser model scope resolves session override before Browser preference be
   assert.deepEqual(resolveBrowserEffectiveModel({ sessionId: 'session_b', sessionModelBindings: sessionBindings, extensionPreferredModel: extensionPreferred, globalDefaultModel: globalDefault }), sessionBindings.session_b);
   assert.deepEqual(resolveBrowserEffectiveModel({ sessionId: 'missing', sessionModelBindings: sessionBindings, extensionPreferredModel: extensionPreferred, globalDefaultModel: globalDefault }), extensionPreferred);
   assert.deepEqual(resolveBrowserEffectiveModel({ sessionId: 'missing', sessionModelBindings: {}, extensionPreferredModel: null, globalDefaultModel: globalDefault }), globalDefault);
+});
+
+test('acknowledged backend session model binding replaces a stale local session binding', () => {
+  const stored = normalizeBrowserModelBinding({ modelId: 'anthropic::claude-fable-5', rawModelId: 'anthropic/claude-fable-5', provider: 'anthropic' });
+  const acknowledged = normalizeBrowserModelBinding({ modelId: 'gpt-5.6-luna', rawModelId: 'gpt-5.6-luna', provider: 'openai-codex', contextTokens: 372_000 });
+
+  assert.deepEqual(resolveAcknowledgedSessionModelBinding({
+    sessionProvider: 'openai-codex',
+    sessionBinding: acknowledged,
+    storedBinding: stored,
+  }), acknowledged);
+});
+
+test('legacy session metadata without a provider does not overwrite a local model selection', () => {
+  const stored = normalizeBrowserModelBinding({ modelId: 'openai-codex::gpt-5.6-luna', rawModelId: 'gpt-5.6-luna', provider: 'openai-codex' });
+  const legacy = normalizeBrowserModelBinding({ modelId: 'openai/gpt-5.6-luna-pro', rawModelId: 'openai/gpt-5.6-luna-pro' });
+
+  assert.deepEqual(resolveAcknowledgedSessionModelBinding({
+    sessionProvider: '',
+    sessionBinding: legacy,
+    storedBinding: stored,
+  }), stored);
+});
+
+test('session bindings resolve to the provider-qualified catalog id before rendering', () => {
+  const binding = normalizeBrowserModelBinding({ modelId: 'gpt-5.6-luna', rawModelId: 'gpt-5.6-luna', provider: 'openai-codex' });
+  const models = [
+    { id: 'anthropic::claude-fable-5', rawModelId: 'anthropic/claude-fable-5', provider: 'anthropic' },
+    { id: 'openai-codex::gpt-5.6-luna', rawModelId: 'gpt-5.6-luna', provider: 'openai-codex' },
+  ];
+
+  assert.equal(resolveCatalogModelIdForBinding({ binding, models }), 'openai-codex::gpt-5.6-luna');
+  assert.equal(resolveCatalogModelIdForBinding({ binding, models: [] }), 'gpt-5.6-luna');
 });
 
 test('browser model scope updates current session binding without losing existing session models', () => {
@@ -1600,6 +1640,20 @@ test('context accounting falls back to local prompt estimate when runtime prompt
   assert.equal(result.contextLimitTokens, 272_000);
   assert.equal(result.lastTurnSpendTokens, 900_000);
   assert.equal(result.source, 'local-estimate');
+});
+
+test('context accounting restores persisted session context when live runtime metadata is absent', () => {
+  const result = contextAccountingSnapshot({
+    localPromptTokens: 14,
+    session: {
+      lastPromptTokens: 29_577,
+      contextLength: 372_000,
+    },
+  });
+
+  assert.equal(result.liveContextTokens, 29_577);
+  assert.equal(result.contextLimitTokens, 372_000);
+  assert.equal(result.source, 'session');
 });
 
 test('context meter display is one accurate session context meter without cumulative spend copy', () => {

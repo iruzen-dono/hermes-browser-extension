@@ -817,6 +817,27 @@ export function resolveBrowserEffectiveModel({
   return normalizeBrowserModelBinding(globalDefaultModel);
 }
 
+export function resolveAcknowledgedSessionModelBinding({
+  sessionProvider = '',
+  sessionBinding = null,
+  storedBinding = null,
+} = {}) {
+  const acknowledged = normalizeBrowserModelBinding(sessionBinding);
+  const stored = normalizeBrowserModelBinding(storedBinding);
+  if (String(sessionProvider || '').trim() && acknowledged) return acknowledged;
+  return stored || acknowledged;
+}
+
+export function resolveCatalogModelIdForBinding({ binding = null, models = [] } = {}) {
+  const normalized = normalizeBrowserModelBinding(binding);
+  if (!normalized) return '';
+  const catalog = Array.isArray(models) ? models : [];
+  const match = catalog.find((model) => model?.id === normalized.modelId)
+    || catalog.find((model) => model?.rawModelId === normalized.rawModelId
+      && (!normalized.provider || model?.provider === normalized.provider || model?.owner === normalized.provider));
+  return String(match?.id || normalized.modelId || normalized.rawModelId || '').trim();
+}
+
 export function updateBrowserModelScope({ selectedModel = null, sessionId = '', sessionModelBindings = {} } = {}) {
   const binding = normalizeBrowserModelBinding(selectedModel);
   const nextBindings = { ...(sessionModelBindings && typeof sessionModelBindings === 'object' ? sessionModelBindings : {}) };
@@ -1087,10 +1108,17 @@ export function contextAccountingSnapshot({
     runtime?.prompt_tokens,
     runtime?.promptTokens,
   );
+  const persistedSessionPromptTokens = firstPositiveToken(
+    session?.last_prompt_tokens,
+    session?.lastPromptTokens,
+    session?.context_used_tokens,
+    session?.contextUsedTokens,
+    session?.liveContextTokens,
+  );
 
   const nextPromptTokens = positiveTokenNumber(localPromptTokens);
   const draftTokenCount = positiveTokenNumber(draftTokens);
-  const liveContextTokens = runtimePromptTokens || nextPromptTokens + draftTokenCount;
+  const liveContextTokens = runtimePromptTokens || persistedSessionPromptTokens || nextPromptTokens + draftTokenCount;
 
   const explicitUsageTotal = firstPositiveToken(usage?.total_tokens, usage?.totalTokens);
   const lastTurnSpendTokens = explicitUsageTotal || additiveTokenTotal(
@@ -1130,7 +1158,7 @@ export function contextAccountingSnapshot({
     nextPromptTokens,
     lastTurnSpendTokens,
     sessionSpendTokens,
-    source: runtimePromptTokens ? 'runtime' : 'local-estimate',
+    source: runtimePromptTokens ? 'runtime' : persistedSessionPromptTokens ? 'session' : 'local-estimate',
   };
 }
 
@@ -1654,6 +1682,11 @@ export function normalizeHermesSessions(payload = {}) {
       cacheReadTokens: Number(session.cache_read_tokens || session.cacheReadTokens || 0),
       cacheWriteTokens: Number(session.cache_write_tokens || session.cacheWriteTokens || 0),
       reasoningTokens: Number(session.reasoning_tokens || session.reasoningTokens || 0),
+      lastPromptTokens: Number(session.last_prompt_tokens || session.lastPromptTokens || 0),
+      contextLength: Number(session.context_length || session.contextLength || 0),
+      thresholdTokens: Number(session.threshold_tokens || session.thresholdTokens || 0),
+      usagePercent: Number(session.usage_percent || session.usagePercent || 0),
+      compressionCount: Number(session.compression_count || session.compressionCount || 0),
       lastActive: Number(session.last_active || session.started_at || session.updated_at || 0),
       parentSessionId: session.parent_session_id || null,
     }))

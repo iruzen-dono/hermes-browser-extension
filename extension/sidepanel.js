@@ -68,7 +68,9 @@ import {
   shouldAutoOpenSessionGroup,
   shouldAutoFlushQueuedTurn,
   shouldCreateFreshSessionOnOpen,
+  resolveAcknowledgedSessionModelBinding,
   resolveBrowserEffectiveModel,
+  resolveCatalogModelIdForBinding,
   skillSuggestionsForInput,
   updateBrowserModelScope,
 } from './lib/common.mjs';
@@ -2012,7 +2014,16 @@ function applySessionRuntimeSnapshot({ session = null, usage = null, runtime = n
 
 function syncActiveSessionRuntimeFromList() {
   const session = availableSessions.find((item) => item.id === settings.sessionId);
-  if (session) applySessionRuntimeSnapshot({ session, sessionId: session.id, source: 'Hermes session' });
+  if (!session) return;
+  const previousModel = settings.model;
+  const previousBinding = JSON.stringify(settings.sessionModelBindings?.[session.id] || null);
+  applyModelBindingForSession(session);
+  applySessionRuntimeSnapshot({ session, sessionId: session.id, source: 'Hermes session' });
+  const nextBinding = JSON.stringify(settings.sessionModelBindings?.[session.id] || null);
+  if (settings.model !== previousModel || nextBinding !== previousBinding) {
+    void chrome.storage.local.set({ hermesBrowserSettings: settings });
+    renderModelOptions(availableModels);
+  }
 }
 
 const TEXT_ATTACHMENT_LIMIT = 12_000;
@@ -2545,7 +2556,13 @@ function modelBindingFromSession(session = {}) {
 
 function applyModelBindingForSession(session = {}) {
   const sessionId = session?.id || settings.sessionId;
-  const binding = normalizeBrowserModelBinding(settings.sessionModelBindings?.[sessionId]) || modelBindingFromSession(session);
+  const storedBinding = normalizeBrowserModelBinding(settings.sessionModelBindings?.[sessionId]);
+  const sessionBinding = modelBindingFromSession(session);
+  const binding = resolveAcknowledgedSessionModelBinding({
+    sessionProvider: session?.provider,
+    sessionBinding,
+    storedBinding,
+  });
   if (!binding) return settings;
   const selected = modelForBinding(binding);
   const modelId = selected?.id || binding.modelId || binding.rawModelId || DEFAULT_SETTINGS.model;
@@ -2579,10 +2596,11 @@ function updateModelButtonMeta() {
 
 function renderModelOptions(models = availableModels) {
   const effectiveBinding = currentEffectiveModelBinding();
-  if (effectiveBinding?.modelId && settings.model !== effectiveBinding.modelId) {
+  const effectiveModelId = resolveCatalogModelIdForBinding({ binding: effectiveBinding, models });
+  if (effectiveModelId && settings.model !== effectiveModelId) {
     settings = {
       ...settings,
-      model: effectiveBinding.modelId,
+      model: effectiveModelId,
       modelContextTokens: effectiveBinding.contextTokens || settings.modelContextTokens || 0,
     };
   }
